@@ -1,6 +1,26 @@
 const bcrypt = require('bcryptjs');
 
+const Claim = require('../models/claim.model');
+const Item = require('../models/item.model');
 const User = require('../models/user.model');
+
+async function getProfileSummary(userId) {
+  const [user, posts, claims, matches] = await Promise.all([
+    getSafeUser(userId),
+    Item.countDocuments({ postedBy: userId }),
+    Claim.countDocuments({ claimant: userId }),
+    countPotentialMatches(userId),
+  ]);
+
+  return {
+    user,
+    stats: {
+      posts,
+      claims,
+      matches,
+    },
+  };
+}
 
 async function updateProfile(userId, payload) {
   await ensureUniqueProfileFields(userId, payload);
@@ -70,6 +90,44 @@ async function deleteAccount(userId) {
   await User.findByIdAndDelete(userId);
 }
 
+async function getSafeUser(userId) {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return user.toSafeObject();
+}
+
+async function countPotentialMatches(userId) {
+  const userItems = await Item.find({
+    postedBy: userId,
+    isResolved: false,
+  }).select('status category color');
+
+  if (userItems.length === 0) return 0;
+
+  const matchConditions = userItems.map((item) => {
+    const condition = {
+      postedBy: { $ne: userId },
+      isResolved: false,
+      status: item.status === 'lost' ? 'found' : 'lost',
+      category: item.category,
+    };
+
+    if (item.color) {
+      condition.color = new RegExp(`^${escapeRegExp(item.color)}$`, 'i');
+    }
+
+    return condition;
+  });
+
+  return Item.countDocuments({ $or: matchConditions });
+}
+
 async function ensureUniqueProfileFields(userId, payload) {
   const conditions = [];
 
@@ -91,7 +149,12 @@ async function ensureUniqueProfileFields(userId, payload) {
   throw error;
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 module.exports = {
+  getProfileSummary,
   updateProfile,
   updateAvatar,
   updatePassword,

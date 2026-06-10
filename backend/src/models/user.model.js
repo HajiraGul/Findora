@@ -47,6 +47,13 @@ const userSchema = new mongoose.Schema(
       default: '',
       maxlength: 2000000,
     },
+    about: {
+      type: String,
+      trim: true,
+      default:
+        'Software Engineering student passionate about building secure and helpful digital solutions for campus communities.',
+      maxlength: 500,
+    },
     preferences: {
       notifications: {
         type: Boolean,
@@ -107,6 +114,9 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     role: this.role,
     isEmailVerified: this.isEmailVerified,
     avatarUrl: this.avatarUrl,
+    about:
+      this.about ||
+      'Software Engineering student passionate about building secure and helpful digital solutions for campus communities.',
     preferences: {
       notifications: this.preferences?.notifications ?? true,
       darkMode: this.preferences?.darkMode ?? false,

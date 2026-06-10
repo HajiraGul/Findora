@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
 import 'item_detail_screen.dart';
 
@@ -12,13 +14,30 @@ class MapViewScreen extends StatefulWidget {
 class _MapViewScreenState extends State<MapViewScreen> {
   String _filter = 'All';
   ItemModel? _selectedItem;
+  late final ItemController _ctrl;
+  Worker? _itemsWatcher;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = Get.find<ItemController>();
+    // Rebuild pins and stats when live items arrive from the API.
+    _itemsWatcher = ever(_ctrl.items, (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _itemsWatcher?.dispose();
+    super.dispose();
+  }
 
   List<ItemModel> get _filteredItems {
-    if (_filter == 'All') return dummyItems;
-    if (_filter == 'Lost') {
-      return dummyItems.where((i) => i.status == ItemStatus.lost).toList();
-    }
-    return dummyItems.where((i) => i.status == ItemStatus.found).toList();
+    final all = _ctrl.items;
+    if (_filter == 'All') return all.toList();
+    if (_filter == 'Lost') return all.where((i) => i.status == ItemStatus.lost).toList();
+    return all.where((i) => i.status == ItemStatus.found).toList();
   }
 
   @override

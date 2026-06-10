@@ -21,6 +21,7 @@ class AuthController extends GetxController {
   final lastDevelopmentOtp = RxnString();
   final token = RxnString();
   final user = Rxn<AuthUser>();
+  final profileStats = const ProfileStats(posts: 0, claims: 0, matches: 0).obs;
 
   bool get isAuthenticated => token.value != null && token.value!.isNotEmpty;
   bool get isAdmin => user.value?.role == 'admin';
@@ -177,11 +178,45 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> refreshProfileSummary() async {
+    final currentToken = _requireToken();
+
+    try {
+      profileLoading.value = true;
+      final response = await _authApiService.getProfileSummary(currentToken);
+
+      if (!response.isOk) {
+        throw Exception(_extractErrorMessage(response.body));
+      }
+
+      final body = response.body;
+      if (body is! Map<String, dynamic>) {
+        throw Exception('Profile summary response is invalid');
+      }
+
+      if (body['user'] is Map<String, dynamic>) {
+        await _saveSession(
+          token.value,
+          AuthUser.fromJson(body['user'] as Map<String, dynamic>),
+        );
+      }
+
+      if (body['stats'] is Map<String, dynamic>) {
+        profileStats.value = ProfileStats.fromJson(
+          body['stats'] as Map<String, dynamic>,
+        );
+      }
+    } finally {
+      profileLoading.value = false;
+    }
+  }
+
   Future<void> updateProfile({
     required String fullName,
     required String email,
     required String phone,
     required String cityOrUniversity,
+    String? about,
   }) async {
     final currentToken = _requireToken();
 
@@ -193,6 +228,7 @@ class AuthController extends GetxController {
         email: email,
         phone: phone,
         cityOrUniversity: cityOrUniversity,
+        about: about,
       );
 
       if (!response.isOk) {

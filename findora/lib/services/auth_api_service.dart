@@ -100,21 +100,34 @@ class AuthApiService extends GetConnect {
     return get('/users/me', headers: {'Authorization': 'Bearer $token'});
   }
 
+  Future<Response<dynamic>> getProfileSummary(String token) {
+    return get(
+      '/users/me/profile-summary',
+      headers: {'Authorization': 'Bearer $token'},
+    );
+  }
+
   Future<Response<dynamic>> updateProfile({
     required String token,
     required String fullName,
     required String email,
     required String phone,
     required String cityOrUniversity,
+    String? about,
   }) {
+    final body = {
+      'fullName': fullName,
+      'email': email,
+      'phone': phone,
+      'cityOrUniversity': cityOrUniversity,
+    };
+    if (about != null) {
+      body['about'] = about;
+    }
+
     return patch(
       '/users/me',
-      {
-        'fullName': fullName,
-        'email': email,
-        'phone': phone,
-        'cityOrUniversity': cityOrUniversity,
-      },
+      body,
       headers: {'Authorization': 'Bearer $token'},
     );
   }

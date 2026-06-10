@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import '../controllers/item_controller.dart';
 import 'location_picker_screen.dart';
 import '../utils/picked_image_data.dart';
 
@@ -136,10 +138,30 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
     }
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-
-    if (mounted) _showSuccessDialog();
+    try {
+      final ctrl = Get.find<ItemController>();
+      final payload = <String, dynamic>{
+        'title': _titleController.text.trim(),
+        'description': _descController.text.trim(),
+        'category': _selectedCategory,
+        'status': 'found',
+        'location': _pickedLocation,
+        'handoverMethod': _handoverMethod,
+        if (_contactController.text.trim().isNotEmpty)
+          'contactInfo': _contactController.text.trim(),
+        if (_photos.isNotEmpty)
+          'images': _photos.map((p) => p.dataUrl).toList(),
+      };
+      final ok = await ctrl.createItem(payload);
+      if (!mounted) return;
+      if (ok) {
+        _showSuccessDialog();
+      } else {
+        _showSnackBar('Failed to post item. Please try again.', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showSnackBar(String msg, {bool isError = false}) {

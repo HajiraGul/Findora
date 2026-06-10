@@ -194,6 +194,16 @@ function validateUpdateProfilePayload(payload) {
     data.cityOrUniversity = cityOrUniversity;
   }
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'about')) {
+    const about = String(payload.about || '').trim();
+
+    if (about.length > 500) {
+      errors.push('About must be 500 characters or less');
+    }
+
+    data.about = about;
+  }
+
   if (Object.keys(data).length === 0) {
     errors.push('No profile fields provided');
   }

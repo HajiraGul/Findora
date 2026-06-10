@@ -2,6 +2,7 @@ const express = require('express');
 
 const {
   me,
+  summary,
   patchMe,
   patchAvatar,
   patchPassword,
@@ -15,6 +16,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/me', me);
+router.get('/me/profile-summary', summary);
 router.patch('/me', patchMe);
 router.patch('/me/avatar', patchAvatar);
 router.patch('/me/password', patchPassword);

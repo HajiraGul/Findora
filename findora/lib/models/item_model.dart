@@ -15,6 +15,7 @@ class ItemModel {
   final String? color;
   final String date;
   final bool isResolved;
+  final double? distanceKm;
 
   const ItemModel({
     required this.id,
@@ -31,7 +32,48 @@ class ItemModel {
     this.color,
     required this.date,
     this.isResolved = false,
+    this.distanceKm,
   });
+
+  factory ItemModel.fromJson(Map<String, dynamic> json) {
+    return ItemModel(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'Other',
+      status: json['status'] == 'found' ? ItemStatus.found : ItemStatus.lost,
+      location: json['location']?.toString() ?? '',
+      postedBy: json['postedBy']?.toString() ?? 'Findora User',
+      timeAgo: json['timeAgo']?.toString() ?? '',
+      imageUrl: json['imageUrl']?.toString(),
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      color: json['color']?.toString(),
+      date: json['date']?.toString() ?? '',
+      isResolved: json['isResolved'] as bool? ?? false,
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+    );
+  }
+
+  ItemModel copyWith({bool? isResolved}) {
+    return ItemModel(
+      id: id,
+      title: title,
+      description: description,
+      category: category,
+      status: status,
+      location: location,
+      postedBy: postedBy,
+      timeAgo: timeAgo,
+      imageUrl: imageUrl,
+      latitude: latitude,
+      longitude: longitude,
+      color: color,
+      date: date,
+      isResolved: isResolved ?? this.isResolved,
+      distanceKm: distanceKm,
+    );
+  }
 }
 
 // ── Dummy Data ──────────────────────────────────────────────

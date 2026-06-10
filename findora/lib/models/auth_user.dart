@@ -7,6 +7,7 @@ class AuthUser {
   final String role;
   final bool isEmailVerified;
   final String avatarUrl;
+  final String about;
   final bool notifications;
   final bool darkMode;
   final bool twoFactor;
@@ -21,6 +22,7 @@ class AuthUser {
     required this.role,
     required this.isEmailVerified,
     required this.avatarUrl,
+    required this.about,
     required this.notifications,
     required this.darkMode,
     required this.twoFactor,
@@ -41,6 +43,7 @@ class AuthUser {
       role: json['role']?.toString() ?? 'user',
       isEmailVerified: json['isEmailVerified'] == true,
       avatarUrl: json['avatarUrl']?.toString() ?? '',
+      about: json['about']?.toString() ?? '',
       notifications: preferences['notifications'] != false,
       darkMode: preferences['darkMode'] == true,
       twoFactor: preferences['twoFactor'] == true,
@@ -58,6 +61,7 @@ class AuthUser {
       'role': role,
       'isEmailVerified': isEmailVerified,
       'avatarUrl': avatarUrl,
+      'about': about,
       'preferences': {
         'notifications': notifications,
         'darkMode': darkMode,
@@ -65,5 +69,31 @@ class AuthUser {
         'biometric': biometric,
       },
     };
+  }
+}
+
+class ProfileStats {
+  final int posts;
+  final int claims;
+  final int matches;
+
+  const ProfileStats({
+    required this.posts,
+    required this.claims,
+    required this.matches,
+  });
+
+  factory ProfileStats.fromJson(Map<String, dynamic> json) {
+    return ProfileStats(
+      posts: _toInt(json['posts']),
+      claims: _toInt(json['claims']),
+      matches: _toInt(json['matches']),
+    );
+  }
+
+  static int _toInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

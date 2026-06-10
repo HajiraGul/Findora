@@ -6,10 +6,25 @@ import '../utils/picked_image_data.dart';
 import 'my_posts_screen.dart';
 import 'my_claims_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
   AuthController get _authController => Get.find<AuthController>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_authController.isAuthenticated) {
+        _authController.refreshProfileSummary();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +82,7 @@ class ProfileScreen extends StatelessWidget {
 
                 const SizedBox(height: 22),
 
-                _statsSection(),
+                Obx(() => _statsSection()),
 
                 const SizedBox(height: 24),
 
@@ -75,7 +90,7 @@ class ProfileScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                _aboutCard(),
+                Obx(() => _aboutCard()),
               ],
             ),
           ),
@@ -186,17 +201,19 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _statsSection() {
+    final stats = _authController.profileStats.value;
+
     return Row(
       children: [
-        Expanded(child: _statCard("24", "Posts")),
+        Expanded(child: _statCard(stats.posts.toString(), "Posts")),
 
         const SizedBox(width: 12),
 
-        Expanded(child: _statCard("11", "Claims")),
+        Expanded(child: _statCard(stats.claims.toString(), "Claims")),
 
         const SizedBox(width: 12),
 
-        Expanded(child: _statCard("7", "Matches")),
+        Expanded(child: _statCard(stats.matches.toString(), "Matches")),
       ],
     );
   }
@@ -316,6 +333,11 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _aboutCard() {
+    final about = _authController.user.value?.about.trim();
+    final aboutText = about == null || about.isEmpty
+        ? 'No profile details added yet.'
+        : about;
+
     return Container(
       padding: const EdgeInsets.all(22),
 
@@ -332,11 +354,11 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
 
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Text(
+          const Text(
             "About",
 
             style: TextStyle(
@@ -346,12 +368,12 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
 
           Text(
-            "Software Engineering student passionate about building secure and helpful digital solutions for campus communities.",
+            aboutText,
 
-            style: TextStyle(height: 1.6, color: Colors.black54),
+            style: const TextStyle(height: 1.6, color: Colors.black54),
           ),
         ],
       ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
 import '../widgets/item_card.dart';
 import 'item_detail_screen.dart';
@@ -51,7 +53,8 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   }
 
   List<ItemModel> get _results {
-    return dummyItems.where((item) {
+    final allItems = Get.find<ItemController>().items;
+    return allItems.where((item) {
       final matchQuery =
           _query.isEmpty ||
           item.title.toLowerCase().contains(_query.toLowerCase()) ||
@@ -704,7 +707,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          ...dummyItems
+          ...Get.find<ItemController>().items
               .take(3)
               .map(
                 (item) => ItemCard(

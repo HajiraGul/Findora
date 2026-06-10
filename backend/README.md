@@ -31,6 +31,7 @@ Make sure MongoDB is running and `MONGODB_URI` in `.env` points to your database
 - `POST /api/auth/resend-otp` creates a new registration OTP.
 - `GET /api/auth/me` returns the authenticated user for a Bearer token.
 - `GET /api/users/me` returns the authenticated user's profile.
+- `GET /api/users/me/profile-summary` returns profile data plus profile page stats.
 - `PATCH /api/users/me` updates profile fields.
 - `PATCH /api/users/me/avatar` updates avatar URL.
 - `PATCH /api/users/me/password` updates password.
@@ -124,7 +125,31 @@ SMTP_FROM=Findora <your_gmail@gmail.com>
   "fullName": "Hajira Gul",
   "email": "hajira@example.com",
   "phone": "+923001234567",
-  "cityOrUniversity": "IIU Islamabad"
+  "cityOrUniversity": "IIU Islamabad",
+  "about": "Software Engineering student passionate about campus communities."
+}
+```
+
+### Profile Summary
+
+```txt
+GET /api/users/me/profile-summary
+```
+
+```json
+{
+  "user": {
+    "id": "66f...",
+    "fullName": "Hajira Gul",
+    "cityOrUniversity": "IIU Islamabad",
+    "avatarUrl": "https://example.com/avatar.jpg",
+    "about": "Software Engineering student passionate about campus communities."
+  },
+  "stats": {
+    "posts": 24,
+    "claims": 11,
+    "matches": 7
+  }
 }
 ```
 

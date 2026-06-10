@@ -5,6 +5,7 @@ const {
   validatePreferencesPayload,
 } = require('../utils/validators');
 const {
+  getProfileSummary,
   updateProfile,
   updateAvatar,
   updatePassword,
@@ -16,6 +17,16 @@ function me(req, res) {
   return res.status(200).json({
     user: req.user.toSafeObject(),
   });
+}
+
+async function summary(req, res, next) {
+  try {
+    const result = await getProfileSummary(req.user._id);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return next(error);
+  }
 }
 
 async function patchMe(req, res, next) {
@@ -117,6 +128,7 @@ async function deleteMe(req, res, next) {
 
 module.exports = {
   me,
+  summary,
   patchMe,
   patchAvatar,
   patchPassword,

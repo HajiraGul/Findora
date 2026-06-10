@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import '../controllers/item_controller.dart';
 import 'location_picker_screen.dart';
 import '../utils/picked_image_data.dart';
 
@@ -130,11 +132,31 @@ class _PostLostItemScreenState extends State<PostLostItemScreen> {
     }
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      _showSuccessDialog();
+    try {
+      final ctrl = Get.find<ItemController>();
+      final payload = <String, dynamic>{
+        'title': _titleController.text.trim(),
+        'description': _descController.text.trim(),
+        'category': _selectedCategory,
+        'status': 'lost',
+        'location': _pickedLocation,
+        if (_offerReward && _rewardController.text.isNotEmpty)
+          'reward': {
+            'enabled': true,
+            'amount': double.tryParse(_rewardController.text) ?? 0,
+          },
+        if (_photos.isNotEmpty)
+          'images': _photos.map((p) => p.dataUrl).toList(),
+      };
+      final ok = await ctrl.createItem(payload);
+      if (!mounted) return;
+      if (ok) {
+        _showSuccessDialog();
+      } else {
+        _showSnackBar('Failed to post item. Please try again.', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
 import '../widgets/item_card.dart';
 import '../widgets/category_chip.dart';
@@ -29,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  late final ItemController _itemController;
 
   final List<Map<String, dynamic>> _categories = [
     {'label': 'All', 'icon': Icons.grid_view_rounded},
@@ -45,6 +48,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    _itemController = Get.find<ItemController>();
+    _itemController.fetchItems();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       setState(() {
@@ -71,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   List<ItemModel> get _filteredItems {
-    return dummyItems.where((item) {
+    return _itemController.items.where((item) {
       final matchCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
       final matchStatus =
@@ -273,23 +278,23 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   ),
                   const SizedBox(height: 6),
-                  _statBadge(
-                    dummyItems
+                  Obx(() => _statBadge(
+                    _itemController.items
                         .where((i) => i.status == ItemStatus.lost)
                         .length
                         .toString(),
                     'Lost',
                     const Color(0xFFEF4444),
-                  ),
+                  )),
                   const SizedBox(height: 6),
-                  _statBadge(
-                    dummyItems
+                  Obx(() => _statBadge(
+                    _itemController.items
                         .where((i) => i.status == ItemStatus.found)
                         .length
                         .toString(),
                     'Found',
                     const Color(0xFF16A34A),
-                  ),
+                  )),
                 ],
               ),
             ],
@@ -461,49 +466,45 @@ class _HomeScreenState extends State<HomeScreen>
   // ─── Item List ─────────────────────────────────────────────────────────────
 
   Widget _buildItemList() {
-    final items = _filteredItems;
-    if (items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: 64,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No items found',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade400,
+    return Obx(() {
+      if (_itemController.isLoading.value && _itemController.items.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final items = _filteredItems;
+      if (items.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'No items found',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 6),
+              Text('Try changing the filters', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            ],
+          ),
+        );
+      }
+      return RefreshIndicator(
+        onRefresh: () => _itemController.fetchItems(),
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          itemCount: items.length,
+          itemBuilder: (_, i) => ItemCard(
+            item: items[i],
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ItemDetailScreen(item: items[i], isGuest: widget.isGuest),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Try changing the filters',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-            ),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      itemCount: items.length,
-      itemBuilder: (_, i) => ItemCard(
-        item: items[i],
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ItemDetailScreen(item: items[i], isGuest: widget.isGuest),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   // ─── FAB ───────────────────────────────────────────────────────────────────
