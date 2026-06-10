@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 
 const authRoutes = require('./routes/auth.routes');
+const claimRoutes = require('./routes/claim.routes');
 const healthRoutes = require('./routes/health.routes');
 const itemRoutes = require('./routes/item.routes');
 const userRoutes = require('./routes/user.routes');
@@ -30,6 +31,7 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 app.use('/api/auth', authRoutes);
+app.use('/api/claims', claimRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/claim_controller.dart';
 import '../models/item_model.dart';
 import 'claim_status_screen.dart';
 
@@ -93,12 +96,31 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
       return;
     }
 
+    final answers = _questions
+        .map((q) => {
+              'question': q['question'] as String,
+              'answer': (q['controller'] as TextEditingController).text.trim(),
+            })
+        .where((a) => (a['answer'] as String).isNotEmpty)
+        .toList();
+
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+
+    final ctrl = Get.find<ClaimController>();
+    final ok = await ctrl.submitClaim({
+      'itemId': widget.item.id,
+      'answers': answers,
+      'proofType': _selectedProofType,
+    });
+
     setState(() => _isLoading = false);
 
-    if (mounted) {
+    if (!mounted) return;
+
+    if (ok) {
       _showSuccessDialog();
+    } else {
+      _showError(ctrl.extractError(null));
     }
   }
 

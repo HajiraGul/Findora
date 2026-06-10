@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/claim_controller.dart';
+import '../models/claim_model.dart';
 import 'claim_details_screen.dart';
 
 class MyClaimsScreen extends StatefulWidget {
@@ -9,49 +13,47 @@ class MyClaimsScreen extends StatefulWidget {
 }
 
 class _MyClaimsScreenState extends State<MyClaimsScreen> {
-  String selectedFilter = "All";
+  String selectedFilter = 'All';
+  late final ClaimController _ctrl;
 
-  final List<Map<String, dynamic>> claims = [
-    {
-      "title": "Black Wallet",
-      "claimId": "#CLM-1021",
-      "date": "12 May 2026",
-      "status": "Pending",
-      "statusColor": Colors.orange,
-      "progress": .35,
-    },
-    {
-      "title": "Student ID Card",
-      "claimId": "#CLM-1018",
-      "date": "08 May 2026",
-      "status": "Approved",
-      "statusColor": Colors.green,
-      "progress": 1.0,
-    },
-    {
-      "title": "Mobile Phone",
-      "claimId": "#CLM-1012",
-      "date": "01 May 2026",
-      "status": "Rejected",
-      "statusColor": Colors.red,
-      "progress": .70,
-    },
-    {
-      "title": "Laptop Bag",
-      "claimId": "#CLM-1009",
-      "date": "28 April 2026",
-      "status": "Pending",
-      "statusColor": Colors.orange,
-      "progress": .45,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = Get.find<ClaimController>();
+    _ctrl.fetchMyClaims();
+  }
+
+  Color _statusColor(ClaimStatus status) {
+    switch (status) {
+      case ClaimStatus.approved:
+        return Colors.green;
+      case ClaimStatus.rejected:
+        return Colors.red;
+      case ClaimStatus.pending:
+        return Colors.orange;
+    }
+  }
+
+  double _statusProgress(ClaimStatus status) {
+    switch (status) {
+      case ClaimStatus.approved:
+        return 1.0;
+      case ClaimStatus.rejected:
+        return 0.7;
+      case ClaimStatus.pending:
+        return 0.35;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Filter Logic
-    final filteredClaims = selectedFilter == "All"
-        ? claims
-        : claims.where((claim) => claim["status"] == selectedFilter).toList();
+    return Obx(() {
+      final all = _ctrl.claims;
+      final filteredClaims = selectedFilter == 'All'
+          ? all.toList()
+          : all
+              .where((c) => c.status.name.capitalize == selectedFilter)
+              .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xffF5FAFF),
@@ -99,43 +101,44 @@ class _MyClaimsScreenState extends State<MyClaimsScreen> {
 
             // 🔹 Claims List
             Expanded(
-              child: filteredClaims.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "No claims found",
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(18),
-                      itemCount: filteredClaims.length,
-
-                      itemBuilder: (context, index) {
-                        final claim = filteredClaims[index];
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 18),
-
-                          child: ClaimCard(
-                            title: claim["title"],
-                            claimId: claim["claimId"],
-                            date: claim["date"],
-                            status: claim["status"],
-                            statusColor: claim["statusColor"],
-                            progress: claim["progress"],
+              child: _ctrl.isLoading.value && filteredClaims.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : filteredClaims.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "No claims found",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        );
-                      },
-                    ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(18),
+                          itemCount: filteredClaims.length,
+                          itemBuilder: (context, index) {
+                            final claim = filteredClaims[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: ClaimCard(
+                                title: claim.itemTitle,
+                                claimId: '#CLM-${claim.id.substring(0, 6).toUpperCase()}',
+                                date: claim.formattedDate,
+                                status: claim.status.name[0].toUpperCase() +
+                                    claim.status.name.substring(1),
+                                statusColor: _statusColor(claim.status),
+                                progress: _statusProgress(claim.status),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
       ),
     );
+  });
   }
 
   // ✅ Filter Chip Widget

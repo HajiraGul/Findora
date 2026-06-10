@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
 
 class ClaimStatusScreen extends StatefulWidget {
@@ -11,12 +14,15 @@ class ClaimStatusScreen extends StatefulWidget {
 class _ClaimStatusScreenState extends State<ClaimStatusScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late final ClaimController _ctrl;
   String _selectedTab = 'All';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _ctrl = Get.find<ClaimController>();
+    _ctrl.fetchMyClaims();
   }
 
   @override
@@ -26,16 +32,15 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
   }
 
   List<ClaimModel> get _filteredClaims {
-    if (_selectedTab == 'All') return dummyClaims;
+    final all = _ctrl.claims;
+    if (_selectedTab == 'All') return all.toList();
     if (_selectedTab == 'Pending') {
-      return dummyClaims.where((c) => c.status == ClaimStatus.pending).toList();
+      return all.where((c) => c.status == ClaimStatus.pending).toList();
     }
     if (_selectedTab == 'Approved') {
-      return dummyClaims
-          .where((c) => c.status == ClaimStatus.approved)
-          .toList();
+      return all.where((c) => c.status == ClaimStatus.approved).toList();
     }
-    return dummyClaims.where((c) => c.status == ClaimStatus.rejected).toList();
+    return all.where((c) => c.status == ClaimStatus.rejected).toList();
   }
 
   @override
@@ -45,9 +50,9 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
       body: Column(
         children: [
           _buildHeader(context),
-          _buildStatsRow(),
+          Obx(() => _buildStatsRow()),
           _buildTabBar(),
-          Expanded(child: _buildClaimList()),
+          Expanded(child: Obx(() => _buildClaimList())),
         ],
       ),
     );
@@ -139,22 +144,17 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
   }
 
   Widget _buildStatsRow() {
-    final pending = dummyClaims
-        .where((c) => c.status == ClaimStatus.pending)
-        .length;
-    final approved = dummyClaims
-        .where((c) => c.status == ClaimStatus.approved)
-        .length;
-    final rejected = dummyClaims
-        .where((c) => c.status == ClaimStatus.rejected)
-        .length;
+    final all = _ctrl.claims;
+    final pending = all.where((c) => c.status == ClaimStatus.pending).length;
+    final approved = all.where((c) => c.status == ClaimStatus.approved).length;
+    final rejected = all.where((c) => c.status == ClaimStatus.rejected).length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
         children: [
           _statCard(
-            dummyClaims.length.toString(),
+            all.length.toString(),
             'Total',
             Icons.list_alt_rounded,
             const Color(0xFF2563EB),
@@ -270,6 +270,9 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
   }
 
   Widget _buildClaimList() {
+    if (_ctrl.isLoading.value && _ctrl.claims.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final claims = _filteredClaims;
     if (claims.isEmpty) {
       return Center(

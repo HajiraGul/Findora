@@ -1,10 +1,103 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
-class ClaimReviewScreen extends StatelessWidget {
-  const ClaimReviewScreen({super.key});
+import '../controllers/claim_controller.dart';
+import '../models/claim_model.dart';
+
+class ClaimReviewScreen extends StatefulWidget {
+  final ClaimModel claim;
+
+  const ClaimReviewScreen({super.key, required this.claim});
+
+  @override
+  State<ClaimReviewScreen> createState() => _ClaimReviewScreenState();
+}
+
+class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
+  bool _isApproving = false;
+  bool _isRejecting = false;
+
+  Future<void> _approve() async {
+    final note = await _showNoteDialog('Approve Claim', 'Approval message (optional)');
+    if (note == null) return;
+
+    setState(() => _isApproving = true);
+    final ok = await Get.find<ClaimController>().approveClaim(
+      widget.claim.id,
+      adminNote: note.isNotEmpty ? note : null,
+    );
+    if (!mounted) return;
+    setState(() => _isApproving = false);
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Claim Approved')),
+      );
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to approve claim')),
+      );
+    }
+  }
+
+  Future<void> _reject() async {
+    final note = await _showNoteDialog('Reject Claim', 'Rejection reason (optional)');
+    if (note == null) return;
+
+    setState(() => _isRejecting = true);
+    final ok = await Get.find<ClaimController>().rejectClaim(
+      widget.claim.id,
+      adminNote: note.isNotEmpty ? note : null,
+    );
+    if (!mounted) return;
+    setState(() => _isRejecting = false);
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Claim Rejected')),
+      );
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to reject claim')),
+      );
+    }
+  }
+
+  Future<String?> _showNoteDialog(String title, String hint) {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          decoration: InputDecoration(hintText: hint),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final claim = widget.claim;
+    final statement = claim.answers.isNotEmpty
+        ? claim.answers.map((a) => '${a.question}\n${a.answer}').join('\n\n')
+        : 'No statement provided.';
+    final shortId = '#CLM-${claim.id.substring(0, 6).toUpperCase()}';
+
     return Scaffold(
       backgroundColor: const Color(0xffF5FAFF),
       appBar: AppBar(
@@ -19,20 +112,19 @@ class ClaimReviewScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "Claim Review",
+          'Claim Review',
           style: TextStyle(
             color: Color(0xff17324D),
             fontWeight: FontWeight.w700,
           ),
         ),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 Claim Item
+            // Claim Item Info
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -59,23 +151,25 @@ class ClaimReviewScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        "Black Wallet",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
-                          color: Color(0xff17324D),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          claim.itemTitle,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 17,
+                            color: Color(0xff17324D),
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        "#CLM-1021 • Ali Raza",
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ],
+                        const SizedBox(height: 5),
+                        Text(
+                          '$shortId • ${claim.claimantName ?? claim.claimantId}',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -83,18 +177,16 @@ class ClaimReviewScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // 🔹 Ownership Proof
+            // Ownership Proof placeholder
             const Text(
-              "Ownership Proof",
+              'Ownership Proof',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: Color(0xff17324D),
               ),
             ),
-
             const SizedBox(height: 10),
-
             Container(
               height: 160,
               width: double.infinity,
@@ -102,42 +194,49 @@ class ClaimReviewScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 color: const Color(0xffEAF5FF),
               ),
-              child: const Icon(
-                Icons.image,
-                size: 50,
-                color: Color(0xff0A5EB0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.image, size: 50, color: Color(0xff0A5EB0)),
+                  const SizedBox(height: 8),
+                  Text(
+                    claim.proofType ?? 'No proof type specified',
+                    style: const TextStyle(
+                      color: Color(0xff0A5EB0),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // 🔹 Description
+            // User Statement
             const Text(
-              "User Statement",
+              'User Statement',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: Color(0xff17324D),
               ),
             ),
-
             const SizedBox(height: 10),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text(
-                "This wallet contains my university ID and ATM card. I can verify details if required.",
-                style: TextStyle(height: 1.6, color: Colors.black54),
+              child: Text(
+                statement,
+                style: const TextStyle(height: 1.6, color: Colors.black54),
               ),
             ),
 
             const SizedBox(height: 30),
 
-            // 🔹 Action Buttons
+            // Approve / Reject
             Row(
               children: [
                 Expanded(
@@ -150,13 +249,17 @@ class ClaimReviewScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Claim Approved")),
-                      );
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Approve"),
+                    onPressed: _isApproving || _isRejecting ? null : _approve,
+                    child: _isApproving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Approve'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -170,13 +273,17 @@ class ClaimReviewScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Claim Rejected")),
-                      );
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Reject"),
+                    onPressed: _isApproving || _isRejecting ? null : _reject,
+                    child: _isRejecting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Reject'),
                   ),
                 ),
               ],
@@ -184,7 +291,7 @@ class ClaimReviewScreen extends StatelessWidget {
 
             const SizedBox(height: 14),
 
-            // 🔹 Unlock Chat
+            // Unlock Chat (placeholder — requires chat backend)
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -199,12 +306,12 @@ class ClaimReviewScreen extends StatelessWidget {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Chat Unlocked between users"),
+                      content: Text('Chat Unlocked between users'),
                     ),
                   );
                 },
                 icon: const Icon(Icons.chat),
-                label: const Text("Unlock Chat"),
+                label: const Text('Unlock Chat'),
               ),
             ),
           ],
