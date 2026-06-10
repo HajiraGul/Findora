@@ -76,8 +76,14 @@ class _PostLostItemScreenState extends State<PostLostItemScreen> {
       final picked = await PickedImageData.fromXFile(file);
       if (!mounted) return;
       setState(() => _photos.add(picked));
-    } catch (_) {
-      if (mounted) _showSnackBar('Unable to pick image', isError: true);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('permission') || msg.contains('denied')) {
+        _showSnackBar('Permission denied. Please allow access in Settings.', isError: true);
+      } else {
+        _showSnackBar('Unable to pick image', isError: true);
+      }
     }
   }
 
@@ -98,7 +104,10 @@ class _PostLostItemScreenState extends State<PostLostItemScreen> {
                 title: const Text('Choose from gallery'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _pickPhoto(ImageSource.gallery);
+                  Future.delayed(
+                    const Duration(milliseconds: 300),
+                    () => _pickPhoto(ImageSource.gallery),
+                  );
                 },
               ),
               ListTile(
@@ -106,7 +115,10 @@ class _PostLostItemScreenState extends State<PostLostItemScreen> {
                 title: const Text('Take photo'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _pickPhoto(ImageSource.camera);
+                  Future.delayed(
+                    const Duration(milliseconds: 300),
+                    () => _pickPhoto(ImageSource.camera),
+                  );
                 },
               ),
             ],

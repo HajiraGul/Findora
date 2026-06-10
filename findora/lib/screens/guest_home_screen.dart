@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../services/item_api_service.dart';
 import 'guest_item_detail_screen.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
@@ -12,6 +15,7 @@ class LostItem {
   final String location;
   final String timeAgo;
   final String description;
+  final String status;
   final IconData icon;
   final Color categoryColor;
   final bool isResolved;
@@ -25,12 +29,76 @@ class LostItem {
     required this.location,
     required this.timeAgo,
     required this.description,
+    this.status = 'lost',
     required this.icon,
     required this.categoryColor,
     this.isResolved = false,
     required this.lat,
     required this.lng,
   });
+
+  factory LostItem.fromJson(Map<String, dynamic> json) {
+    final category = json['category']?.toString() ?? 'Other';
+    return LostItem(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Untitled item',
+      category: category,
+      location: json['location']?.toString() ?? 'Unknown location',
+      timeAgo: json['timeAgo']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      status: json['status']?.toString() == 'found' ? 'found' : 'lost',
+      icon: _iconForCategory(category),
+      categoryColor: _colorForCategory(category),
+      isResolved: json['isResolved'] as bool? ?? false,
+      lat: (json['latitude'] as num?)?.toDouble() ?? 0,
+      lng: (json['longitude'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  bool get isFoundPost => status == 'found';
+}
+
+IconData _iconForCategory(String category) {
+  switch (category) {
+    case 'Electronics':
+      return Icons.devices_rounded;
+    case 'Documents':
+      return Icons.badge_outlined;
+    case 'Keys':
+      return Icons.key_rounded;
+    case 'Bags':
+    case 'Bags & Wallets':
+      return Icons.backpack_outlined;
+    case 'Jewelry':
+    case 'Accessories':
+      return Icons.watch_outlined;
+    case 'Books':
+      return Icons.menu_book_rounded;
+    default:
+      return Icons.category_outlined;
+  }
+}
+
+Color _colorForCategory(String category) {
+  switch (category) {
+    case 'Electronics':
+      return const Color(0xFF0891B2);
+    case 'Documents':
+      return const Color(0xFF2563EB);
+    case 'Keys':
+      return const Color(0xFFDC2626);
+    case 'Bags':
+    case 'Bags & Wallets':
+      return const Color(0xFF059669);
+    case 'Jewelry':
+      return const Color(0xFFD97706);
+    case 'Accessories':
+      return const Color(0xFF7C3AED);
+    case 'Books':
+      return const Color(0xFF9333EA);
+    default:
+      return const Color(0xFF64748B);
+  }
 }
 
 final List<LostItem> kDemoItems = [
@@ -127,29 +195,31 @@ class GuestHomeScreen extends StatefulWidget {
 class _GuestHomeScreenState extends State<GuestHomeScreen>
     with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
+  late final ItemApiService _itemApi;
   String _searchQuery = '';
   String _selectedCategory = 'All';
   bool _showMapView = false;
+  bool _isLoading = true;
+  bool _usingFallbackItems = false;
+  List<LostItem> _items = kDemoItems;
   late AnimationController _fabAnimController;
 
-  final List<String> _categories = [
-    'All',
-    'Electronics',
-    'Accessories',
-    'Bags',
-    'Keys',
-    'Jewelry',
-    'Documents',
-  ];
+  List<String> get _categories {
+    final categories = _items.map((item) => item.category).toSet().toList()
+      ..sort();
+    return ['All', ...categories];
+  }
 
   @override
   void initState() {
     super.initState();
+    _itemApi = Get.find<ItemApiService>();
     _fabAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
     _fabAnimController.forward();
+    _loadGuestItems();
   }
 
   @override
@@ -160,7 +230,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
   }
 
   List<LostItem> get _filteredItems {
-    return kDemoItems.where((item) {
+    return _items.where((item) {
       final matchesSearch =
           _searchQuery.isEmpty ||
           item.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -170,6 +240,37 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
           _selectedCategory == 'All' || item.category == _selectedCategory;
       return matchesSearch && matchesCategory;
     }).toList();
+  }
+
+  Future<void> _loadGuestItems() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await _itemApi.getItems(limit: 100);
+      final body = response.body;
+      final rawItems = body is Map ? body['items'] as List? : null;
+      final apiItems =
+          rawItems
+              ?.whereType<Map>()
+              .map((item) => LostItem.fromJson(Map<String, dynamic>.from(item)))
+              .where((item) => item.id.isNotEmpty)
+              .toList() ??
+          [];
+
+      if (!mounted) return;
+      setState(() {
+        _items = apiItems.isEmpty ? kDemoItems : apiItems;
+        _usingFallbackItems = apiItems.isEmpty;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _items = kDemoItems;
+        _usingFallbackItems = true;
+        _isLoading = false;
+      });
+    }
   }
 
   void _showGuestPrompt(String action) {
@@ -190,7 +291,19 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
           _buildSearchBar(),
           _buildCategoryChips(),
           _buildViewToggle(),
-          Expanded(child: _showMapView ? _buildMapView() : _buildListView()),
+          if (_usingFallbackItems) _buildOfflineNotice(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF2563EB),
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : _showMapView
+                ? _buildMapView()
+                : _buildListView(),
+          ),
         ],
       ),
       floatingActionButton: _buildGuestFAB(),
@@ -381,7 +494,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: _categories.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (_, i) {
             final cat = _categories[i];
             final isSelected = cat == _selectedCategory;
@@ -461,6 +574,22 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
     );
   }
 
+  Widget _buildOfflineNotice() {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFFBEB),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: const Text(
+        'Showing sample items until the server is available.',
+        style: TextStyle(
+          color: Color(0xFF92400E),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _buildListView() {
     final items = _filteredItems;
     if (items.isEmpty) {
@@ -491,15 +620,19 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      itemCount: items.length,
-      itemBuilder: (_, i) => _ItemCard(
-        item: items[i],
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GuestItemDetailScreen(item: items[i]),
+    return RefreshIndicator(
+      color: const Color(0xFF2563EB),
+      onRefresh: _loadGuestItems,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        itemCount: items.length,
+        itemBuilder: (_, i) => _ItemCard(
+          item: items[i],
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GuestItemDetailScreen(item: items[i]),
+            ),
           ),
         ),
       ),
@@ -535,16 +668,8 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                   ),
                 ),
                 // Pins
-                ..._filteredItems.asMap().entries.map((e) {
-                  final positions = [
-                    const Offset(0.45, 0.35),
-                    const Offset(0.55, 0.28),
-                    const Offset(0.38, 0.55),
-                    const Offset(0.52, 0.45),
-                    const Offset(0.65, 0.62),
-                    const Offset(0.42, 0.42),
-                  ];
-                  final pos = positions[e.key % positions.length];
+                ..._filteredItems.map((item) {
+                  final pos = _mapPosition(item);
                   return Positioned(
                     left: MediaQuery.of(context).size.width * pos.dx - 18,
                     top: (MediaQuery.of(context).size.height * 0.5) * pos.dy,
@@ -552,7 +677,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => GuestItemDetailScreen(item: e.value),
+                          builder: (_) => GuestItemDetailScreen(item: item),
                         ),
                       ),
                       child: Column(
@@ -563,7 +688,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: e.value.isResolved
+                              color: item.isResolved || item.isFoundPost
                                   ? const Color(0xFF16A34A)
                                   : const Color(0xFF2563EB),
                               borderRadius: BorderRadius.circular(8),
@@ -576,9 +701,9 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                               ],
                             ),
                             child: Text(
-                              e.value.title.length > 12
-                                  ? '${e.value.title.substring(0, 12)}…'
-                                  : e.value.title,
+                              item.title.length > 12
+                                  ? '${item.title.substring(0, 12)}...'
+                                  : item.title,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -589,7 +714,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                           Container(
                             width: 2,
                             height: 8,
-                            color: e.value.isResolved
+                            color: item.isResolved || item.isFoundPost
                                 ? const Color(0xFF16A34A)
                                 : const Color(0xFF2563EB),
                           ),
@@ -597,7 +722,7 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: e.value.isResolved
+                              color: item.isResolved || item.isFoundPost
                                   ? const Color(0xFF16A34A)
                                   : const Color(0xFF2563EB),
                               shape: BoxShape.circle,
@@ -627,6 +752,21 @@ class _GuestHomeScreenState extends State<GuestHomeScreen>
         ),
       ],
     );
+  }
+
+  Offset _mapPosition(LostItem item) {
+    if (item.lat == 0 && item.lng == 0) {
+      return const Offset(0.5, 0.45);
+    }
+
+    const minLat = 23.5;
+    const maxLat = 37.2;
+    const minLng = 60.8;
+    const maxLng = 77.2;
+
+    final x = ((item.lng - minLng) / (maxLng - minLng)).clamp(0.12, 0.88);
+    final y = (1 - (item.lat - minLat) / (maxLat - minLat)).clamp(0.16, 0.82);
+    return Offset(x.toDouble(), y.toDouble());
   }
 
   Widget _buildGuestFAB() {
