@@ -12,6 +12,7 @@ class AuthUser {
   final bool darkMode;
   final bool twoFactor;
   final bool biometric;
+  final bool banned;
 
   const AuthUser({
     required this.id,
@@ -27,6 +28,7 @@ class AuthUser {
     required this.darkMode,
     required this.twoFactor,
     required this.biometric,
+    this.banned = false,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -48,6 +50,7 @@ class AuthUser {
       darkMode: preferences['darkMode'] == true,
       twoFactor: preferences['twoFactor'] == true,
       biometric: preferences['biometric'] == true,
+      banned: json['banned'] == true,
     );
   }
 

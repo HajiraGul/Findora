@@ -97,6 +97,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    banned: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -123,6 +127,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
       twoFactor: this.preferences?.twoFactor ?? false,
       biometric: this.preferences?.biometric ?? false,
     },
+    banned: this.banned ?? false,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

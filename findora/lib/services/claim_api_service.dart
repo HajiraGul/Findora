@@ -47,6 +47,17 @@ class ClaimApiService extends GetConnect {
     return patch('/claims/$id/approve', body, headers: _auth(token));
   }
 
+  Future<Response<dynamic>> getAllClaims({
+    required String token,
+    String? status,
+    int page = 1,
+    int limit = 50,
+  }) {
+    final query = <String, String>{'page': '$page', 'limit': '$limit'};
+    if (status != null && status.isNotEmpty) query['status'] = status;
+    return get('/claims', headers: _auth(token), query: query);
+  }
+
   Future<Response<dynamic>> rejectClaim({
     required String token,
     required String id,

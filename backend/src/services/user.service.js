@@ -90,6 +90,48 @@ async function deleteAccount(userId) {
   await User.findByIdAndDelete(userId);
 }
 
+async function listUsers({ page, limit, q }) {
+  const query = {};
+  if (q) {
+    query.$or = [
+      { fullName: new RegExp(escapeRegExp(q), 'i') },
+      { email: new RegExp(escapeRegExp(q), 'i') },
+    ];
+  }
+  const skip = (page - 1) * limit;
+  const [users, total] = await Promise.all([
+    User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    User.countDocuments(query),
+  ]);
+  return {
+    users: users.map((u) => u.toSafeObject()),
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  };
+}
+
+async function setBannedStatus(userId, banned) {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { banned },
+    { new: true, runValidators: true }
+  );
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return user.toSafeObject();
+}
+
+async function adminDeleteUser(userId) {
+  const user = await User.findByIdAndDelete(userId);
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+}
+
 async function getSafeUser(userId) {
   const user = await User.findById(userId);
 
@@ -160,4 +202,7 @@ module.exports = {
   updatePassword,
   updatePreferences,
   deleteAccount,
+  listUsers,
+  setBannedStatus,
+  adminDeleteUser,
 };

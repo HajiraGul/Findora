@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 
+const adminRoutes = require('./routes/admin.routes');
 const authRoutes = require('./routes/auth.routes');
 const claimRoutes = require('./routes/claim.routes');
 const healthRoutes = require('./routes/health.routes');
@@ -30,6 +31,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
+app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/items', itemRoutes);

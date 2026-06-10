@@ -8,8 +8,12 @@ const {
   patchPassword,
   patchPreferences,
   deleteMe,
+  adminListUsers,
+  adminBanUser,
+  adminUnbanUser,
+  adminRemoveUser,
 } = require('../controllers/user.controller');
-const { authenticate } = require('../middleware/auth.middleware');
+const { authenticate, authorize } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
@@ -22,5 +26,11 @@ router.patch('/me/avatar', patchAvatar);
 router.patch('/me/password', patchPassword);
 router.patch('/me/preferences', patchPreferences);
 router.delete('/me', deleteMe);
+
+// Admin user management
+router.get('/', authorize('admin'), adminListUsers);
+router.patch('/:id/ban', authorize('admin'), adminBanUser);
+router.patch('/:id/unban', authorize('admin'), adminUnbanUser);
+router.delete('/:id', authorize('admin'), adminRemoveUser);
 
 module.exports = router;
