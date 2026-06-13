@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,13 +9,26 @@ import '../services/auth_api_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/push_service.dart';
 
+class RememberedCredentials {
+  final String email;
+  final String password;
+
+  const RememberedCredentials({required this.email, required this.password});
+}
+
 class AuthController extends GetxController {
   static const _tokenKey = 'auth_token';
   static const _userKey = 'auth_user';
+  static const _rememberEmailKey = 'remember_email';
+  static const _rememberPasswordKey = 'remember_password';
 
   final AuthApiService _authApiService;
   final FirebaseAuthService _firebaseAuth;
   final PushService _push;
+
+  // Credentials for "Remember me" live in the OS keychain/keystore rather than
+  // SharedPreferences, since a password should never sit in plain text.
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   AuthController(this._authApiService, this._firebaseAuth, this._push);
 
@@ -333,6 +347,39 @@ class AuthController extends GetxController {
     } finally {
       profileLoading.value = false;
     }
+  }
+
+  /// Returns the credentials saved via "Remember me", or null if none were
+  /// stored (or storage failed).
+  Future<RememberedCredentials?> loadRememberedCredentials() async {
+    try {
+      final email = await _secureStorage.read(key: _rememberEmailKey);
+      final password = await _secureStorage.read(key: _rememberPasswordKey);
+
+      if (email == null || password == null) return null;
+      return RememberedCredentials(email: email, password: password);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveRememberedCredentials({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _secureStorage.write(key: _rememberEmailKey, value: email);
+      await _secureStorage.write(key: _rememberPasswordKey, value: password);
+    } catch (_) {
+      // Never block sign-in if the keychain is unavailable.
+    }
+  }
+
+  Future<void> clearRememberedCredentials() async {
+    try {
+      await _secureStorage.delete(key: _rememberEmailKey);
+      await _secureStorage.delete(key: _rememberPasswordKey);
+    } catch (_) {}
   }
 
   Future<void> _clearSession() async {

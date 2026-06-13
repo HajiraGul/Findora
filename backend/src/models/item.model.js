@@ -154,7 +154,9 @@ itemSchema.methods.toSafeObject = function toSafeObject(distanceKm) {
     postedById:
       postedBy && typeof postedBy === 'object' && postedBy._id
         ? postedBy._id.toString()
-        : this.postedBy.toString(),
+        : this.postedBy
+        ? this.postedBy.toString()
+        : null,
     timeAgo: getTimeAgo(this.createdAt),
     imageUrl: this.images[0] || null,
     images: this.images,

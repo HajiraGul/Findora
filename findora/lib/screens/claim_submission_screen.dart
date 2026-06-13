@@ -120,7 +120,7 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
     if (ok) {
       _showSuccessDialog();
     } else {
-      _showError(ctrl.extractError(null));
+      _showError(ctrl.lastError);
     }
   }
 

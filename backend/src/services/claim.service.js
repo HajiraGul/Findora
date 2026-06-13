@@ -24,6 +24,13 @@ async function submitClaim(userId, payload) {
     throw error;
   }
 
+  const existingClaim = await Claim.findOne({ item: payload.itemId, claimant: userId });
+  if (existingClaim) {
+    const error = new Error('You have already submitted a claim for this item');
+    error.statusCode = 409;
+    throw error;
+  }
+
   const claim = await Claim.create({
     item: payload.itemId,
     claimant: userId,

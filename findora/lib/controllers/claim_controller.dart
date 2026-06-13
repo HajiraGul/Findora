@@ -15,6 +15,8 @@ class ClaimController extends GetxController {
   final isLoading = false.obs;
   final isSubmitting = false.obs;
 
+  String lastError = 'Something went wrong. Please try again.';
+
   Future<void> fetchMyClaims({String? status}) async {
     if (_token.isEmpty) return;
     try {
@@ -34,14 +36,22 @@ class ClaimController extends GetxController {
   }
 
   Future<bool> submitClaim(Map<String, dynamic> data) async {
-    if (_token.isEmpty) return false;
+    if (_token.isEmpty) {
+      lastError = 'You must be signed in to submit a claim.';
+      return false;
+    }
     try {
       isSubmitting.value = true;
       final response = await _api.submitClaim(token: _token, data: data);
       final ok = response.statusCode == 201 || response.isOk;
-      if (ok) fetchMyClaims();
+      if (ok) {
+        fetchMyClaims();
+      } else {
+        lastError = extractError(response.body);
+      }
       return ok;
     } catch (_) {
+      lastError = 'Network error. Please check your connection and try again.';
       return false;
     } finally {
       isSubmitting.value = false;

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
 const { uploadItemImages } = require('./image.service');
 
@@ -129,6 +130,8 @@ async function updateItem(itemId, user, payload) {
 
 async function deleteItem(itemId, user) {
   const item = await findOwnedItem(itemId, user);
+  // Remove claims against this item so they don't become orphaned references.
+  await Claim.deleteMany({ item: item._id });
   await item.deleteOne();
 }
 

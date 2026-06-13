@@ -86,7 +86,18 @@ async function updatePreferences(userId, payload) {
   return user.toSafeObject();
 }
 
+async function cascadeDeleteUserData(userId) {
+  const items = await Item.find({ postedBy: userId }).select('_id');
+  const itemIds = items.map((item) => item._id);
+
+  await Claim.deleteMany({
+    $or: [{ claimant: userId }, { item: { $in: itemIds } }],
+  });
+  await Item.deleteMany({ postedBy: userId });
+}
+
 async function deleteAccount(userId) {
+  await cascadeDeleteUserData(userId);
   await User.findByIdAndDelete(userId);
 }
 
@@ -124,12 +135,15 @@ async function setBannedStatus(userId, banned) {
 }
 
 async function adminDeleteUser(userId) {
-  const user = await User.findByIdAndDelete(userId);
+  const user = await User.findById(userId);
   if (!user) {
     const error = new Error('User not found');
     error.statusCode = 404;
     throw error;
   }
+
+  await cascadeDeleteUserData(userId);
+  await user.deleteOne();
 }
 
 async function getSafeUser(userId) {

@@ -7,10 +7,13 @@ function notFound(req, res, next) {
 function errorHandler(error, req, res, next) {
   if (error.code === 11000) {
     const field = Object.keys(error.keyValue || {})[0] || 'field';
+    const accountFields = ['email', 'phone'];
 
-    return res.status(409).json({
-      message: `An account with this ${field} already exists`,
-    });
+    const message = accountFields.includes(field)
+      ? `An account with this ${field} already exists`
+      : 'This record already exists';
+
+    return res.status(409).json({ message });
   }
 
   const statusCode = error.statusCode || 500;

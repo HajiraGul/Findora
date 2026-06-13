@@ -22,6 +22,25 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authController = Get.find<AuthController>();
 
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedCredentials();
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    final saved = await _authController.loadRememberedCredentials();
+    if (saved == null || !mounted) return;
+
+    setState(() {
+      _emailController.text = saved.email;
+      _passwordController.text = saved.password;
+      _rememberMe = true;
+    });
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -37,10 +56,19 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await _authController.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      await _authController.login(email: email, password: password);
+
+      if (_rememberMe) {
+        await _authController.saveRememberedCredentials(
+          email: email,
+          password: password,
+        );
+      } else {
+        await _authController.clearRememberedCredentials();
+      }
 
       if (!mounted) return;
 
@@ -190,26 +218,60 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
 
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ForgotPasswordScreen(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Remember me
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () =>
+                              setState(() => _rememberMe = !_rememberMe),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Radio<bool>(
+                                value: true,
+                                groupValue: _rememberMe ? true : null,
+                                toggleable: true,
+                                activeColor: const Color(0xFF2563EB),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                onChanged: (v) =>
+                                    setState(() => _rememberMe = v ?? false),
+                              ),
+                              const Text(
+                                'Remember me',
+                                style: TextStyle(
+                                  color: Color(0xFF475569),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Text(
-                          'Forgot password?',
-                          style: TextStyle(
-                            color: Color(0xFF2563EB),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+
+                        // Forgot password
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ForgotPasswordScreen(),
+                            ),
+                          ),
+                          child: const Text(
+                            'Forgot password?',
+                            style: TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
 
                     const SizedBox(height: 8),

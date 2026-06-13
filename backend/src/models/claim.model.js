@@ -80,12 +80,18 @@ claimSchema.methods.toSafeObject = function toSafeObject() {
 
   return {
     id: this._id.toString(),
-    itemId: populatedItem ? populatedItem._id.toString() : this.item.toString(),
+    itemId: populatedItem
+      ? populatedItem._id.toString()
+      : this.item
+      ? this.item.toString()
+      : null,
     itemTitle: populatedItem ? populatedItem.title : undefined,
     itemCategory: populatedItem ? populatedItem.category : undefined,
     claimantId: populatedClaimant
       ? populatedClaimant._id.toString()
-      : this.claimant.toString(),
+      : this.claimant
+      ? this.claimant.toString()
+      : null,
     claimantName: populatedClaimant ? populatedClaimant.fullName : undefined,
     status: this.status,
     answers: this.answers.map((a) => ({ question: a.question, answer: a.answer })),
