@@ -23,6 +23,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authController = Get.find<AuthController>();
 
   bool _rememberMe = false;
+  Map<String, String> _savedAccounts = {};
+  final _emailFocus = FocusNode();
+
+  List<String> get _savedEmails => _savedAccounts.keys.toList();
 
   @override
   void initState() {
@@ -31,12 +35,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loadRememberedCredentials() async {
-    final saved = await _authController.loadRememberedCredentials();
-    if (saved == null || !mounted) return;
+    final accounts = await _authController.loadRememberedAccounts();
+    if (!mounted || accounts.isEmpty) return;
 
     setState(() {
-      _emailController.text = saved.email;
-      _passwordController.text = saved.password;
+      _savedAccounts = accounts;
+      final email = accounts.keys.first;
+      _emailController.text = email;
+      _passwordController.text = accounts[email] ?? '';
       _rememberMe = true;
     });
   }
@@ -45,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 
@@ -67,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
       } else {
-        await _authController.clearRememberedCredentials();
+        await _authController.removeRememberedAccount(email);
       }
 
       if (!mounted) return;
@@ -178,24 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CustomTextField(
-                      label: 'Email address',
-                      hint: 'you@example.com',
-                      prefixIcon: Icons.mail_outline_rounded,
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) {
-                          return 'Email is required';
-                        }
-
-                        if (!_isValidEmail(v.trim())) {
-                          return 'Enter a valid email address';
-                        }
-
-                        return null;
-                      },
-                    ),
+                    _buildEmailField(),
 
                     const SizedBox(height: 20),
 
@@ -388,6 +378,97 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Email field with native-style autocomplete: focusing/typing shows a
+  // dropdown of accounts saved via "Remember me". Picking one fills the
+  // password too. With no saved accounts it behaves like a plain field.
+  Widget _buildEmailField() {
+    return Autocomplete<String>(
+      textEditingController: _emailController,
+      focusNode: _emailFocus,
+      optionsBuilder: (TextEditingValue value) {
+        if (_savedEmails.isEmpty) return const Iterable<String>.empty();
+        final query = value.text.toLowerCase();
+        return _savedEmails.where(
+          (email) => email.toLowerCase().contains(query) &&
+              email.toLowerCase() != query,
+        );
+      },
+      onSelected: (email) {
+        setState(() {
+          _passwordController.text = _savedAccounts[email] ?? '';
+          _rememberMe = true;
+        });
+        _emailFocus.unfocus();
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return CustomTextField(
+          label: 'Email address',
+          hint: 'you@example.com',
+          prefixIcon: Icons.mail_outline_rounded,
+          controller: controller,
+          focusNode: focusNode,
+          keyboardType: TextInputType.emailAddress,
+          onFieldSubmitted: (_) => onFieldSubmitted(),
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) {
+              return 'Email is required';
+            }
+            if (!_isValidEmail(v.trim())) {
+              return 'Enter a valid email address';
+            }
+            return null;
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220, maxWidth: 360),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (context, index) {
+                  final email = options.elementAt(index);
+                  return InkWell(
+                    onTap: () => onSelected(email),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.account_circle_outlined,
+                            size: 18,
+                            color: Color(0xFF2563EB),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              email,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -15,7 +15,25 @@ class ClaimController extends GetxController {
   final isLoading = false.obs;
   final isSubmitting = false.obs;
 
+  bool _hasLoadedMyClaims = false;
+
   String lastError = 'Something went wrong. Please try again.';
+
+  /// Loads the signed-in user's claims once (e.g. when opening an item detail)
+  /// so the UI can tell whether they've already submitted for that item.
+  Future<void> ensureMyClaimsLoaded() async {
+    if (_hasLoadedMyClaims || isLoading.value || _token.isEmpty) return;
+    _hasLoadedMyClaims = true;
+    await fetchMyClaims();
+  }
+
+  /// The current user's claim for [itemId], or null if they haven't claimed it.
+  ClaimModel? claimForItem(String itemId) {
+    for (final claim in claims) {
+      if (claim.itemId == itemId) return claim;
+    }
+    return null;
+  }
 
   Future<void> fetchMyClaims({String? status}) async {
     if (_token.isEmpty) return;

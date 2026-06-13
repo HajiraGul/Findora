@@ -195,9 +195,11 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
 
             const SizedBox(height: 20),
 
-            // Ownership Proof placeholder
+            // Submitted proof / reference. Works for both an owner's
+            // ownership proof and a finder's photo of the found item — the
+            // statement below shows the actual questions for context.
             const Text(
-              'Ownership Proof',
+              'Submitted Proof',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

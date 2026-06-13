@@ -28,13 +28,17 @@ class InitialBinding extends Bindings {
       () => FirestoreChatService(),
       fenix: true,
     );
-    Get.lazyPut<AuthController>(
-      () => AuthController(
+    // Permanent + eager: the restored login session must live for the whole
+    // app lifetime. With lazyPut + SmartManagement.full it was disposed on
+    // route changes and recreated with a null token, bouncing the user back
+    // to the login screen after a hot reload / navigation.
+    Get.put<AuthController>(
+      AuthController(
         Get.find<AuthApiService>(),
         Get.find<FirebaseAuthService>(),
         Get.find<PushService>(),
       ),
-      fenix: true,
+      permanent: true,
     );
     Get.lazyPut<ItemController>(
       () => ItemController(Get.find<ItemApiService>()),

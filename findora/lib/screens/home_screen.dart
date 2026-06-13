@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../controllers/auth_controller.dart';
 import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
 import '../widgets/item_card.dart';
@@ -77,7 +78,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   List<ItemModel> get _filteredItems {
+    final myId = Get.find<AuthController>().user.value?.id;
     return _itemController.items.where((item) {
+      // Hide the user's own posts from the dashboard feed — they manage those
+      // under Profile > My Posts, so the feed only shows other people's items.
+      if (!widget.isGuest &&
+          myId != null &&
+          myId.isNotEmpty &&
+          item.postedById == myId) {
+        return false;
+      }
       final matchCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
       final matchStatus =

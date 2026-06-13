@@ -7,8 +7,10 @@ class CustomTextField extends StatefulWidget {
   final bool isPassword;
   final TextInputType keyboardType;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final void Function(String)? onFieldSubmitted;
   final int? maxLength;
 
   const CustomTextField({
@@ -19,8 +21,10 @@ class CustomTextField extends StatefulWidget {
     this.isPassword = false,
     this.keyboardType = TextInputType.text,
     this.controller,
+    this.focusNode,
     this.validator,
     this.onChanged,
+    this.onFieldSubmitted,
     this.maxLength,
   });
 
@@ -51,10 +55,12 @@ class _CustomTextFieldState extends State<CustomTextField> {
           onFocusChange: (f) => setState(() => _isFocused = f),
           child: TextFormField(
             controller: widget.controller,
+            focusNode: widget.focusNode,
             obscureText: widget.isPassword && _obscure,
             keyboardType: widget.keyboardType,
             validator: widget.validator,
             onChanged: widget.onChanged,
+            onFieldSubmitted: widget.onFieldSubmitted,
             maxLength: widget.maxLength,
             style: const TextStyle(
               fontSize: 15,

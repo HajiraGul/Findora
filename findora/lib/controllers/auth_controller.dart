@@ -21,6 +21,7 @@ class AuthController extends GetxController {
   static const _userKey = 'auth_user';
   static const _rememberEmailKey = 'remember_email';
   static const _rememberPasswordKey = 'remember_password';
+  static const _rememberAccountsKey = 'remember_accounts';
 
   final AuthApiService _authApiService;
   final FirebaseAuthService _firebaseAuth;
@@ -51,17 +52,21 @@ class AuthController extends GetxController {
   }
 
   Future<void> restoreSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storedToken = prefs.getString(_tokenKey);
-    final storedUser = prefs.getString(_userKey);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedToken = prefs.getString(_tokenKey);
+      final storedUser = prefs.getString(_userKey);
 
-    if (storedToken == null || storedUser == null) return;
+      if (storedToken == null || storedUser == null) return;
 
-    token.value = storedToken;
-    user.value = AuthUser.fromJson(
-      jsonDecode(storedUser) as Map<String, dynamic>,
-    );
-    _syncFirebaseSession(user.value!);
+      token.value = storedToken;
+      user.value = AuthUser.fromJson(
+        jsonDecode(storedUser) as Map<String, dynamic>,
+      );
+      _syncFirebaseSession(user.value!);
+    } catch (_) {
+      // A corrupt stored session must never crash startup — treat as logged out.
+    }
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -349,18 +354,42 @@ class AuthController extends GetxController {
     }
   }
 
-  /// Returns the credentials saved via "Remember me", or null if none were
-  /// stored (or storage failed).
-  Future<RememberedCredentials?> loadRememberedCredentials() async {
+  /// All accounts saved via "Remember me", as an ordered email -> password map.
+  /// Passwords live in the OS keychain/keystore, never in SharedPreferences.
+  Future<Map<String, String>> loadRememberedAccounts() async {
+    final accounts = <String, String>{};
     try {
-      final email = await _secureStorage.read(key: _rememberEmailKey);
-      final password = await _secureStorage.read(key: _rememberPasswordKey);
+      final raw = await _secureStorage.read(key: _rememberAccountsKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          decoded.forEach((key, value) {
+            accounts[key.toString()] = value.toString();
+          });
+        }
+      }
 
-      if (email == null || password == null) return null;
-      return RememberedCredentials(email: email, password: password);
+      // Back-compat: fold in any credentials saved by the old single-account
+      // keys so users who upgraded keep their remembered login.
+      final legacyEmail = await _secureStorage.read(key: _rememberEmailKey);
+      final legacyPassword = await _secureStorage.read(key: _rememberPasswordKey);
+      if (legacyEmail != null &&
+          legacyPassword != null &&
+          !accounts.containsKey(legacyEmail)) {
+        accounts[legacyEmail] = legacyPassword;
+      }
     } catch (_) {
-      return null;
+      return {};
     }
+    return accounts;
+  }
+
+  /// Convenience for callers that only want the most recently saved account.
+  Future<RememberedCredentials?> loadRememberedCredentials() async {
+    final accounts = await loadRememberedAccounts();
+    if (accounts.isEmpty) return null;
+    final email = accounts.keys.first;
+    return RememberedCredentials(email: email, password: accounts[email]!);
   }
 
   Future<void> saveRememberedCredentials({
@@ -368,15 +397,39 @@ class AuthController extends GetxController {
     required String password,
   }) async {
     try {
-      await _secureStorage.write(key: _rememberEmailKey, value: email);
-      await _secureStorage.write(key: _rememberPasswordKey, value: password);
+      final accounts = await loadRememberedAccounts();
+      accounts[email] = password;
+      await _secureStorage.write(
+        key: _rememberAccountsKey,
+        value: jsonEncode(accounts),
+      );
     } catch (_) {
       // Never block sign-in if the keychain is unavailable.
     }
   }
 
+  /// Forgets a single saved account (used when "Remember me" is unchecked or
+  /// the user removes an account from the saved list).
+  Future<void> removeRememberedAccount(String email) async {
+    try {
+      final accounts = await loadRememberedAccounts();
+      accounts.remove(email);
+      await _secureStorage.write(
+        key: _rememberAccountsKey,
+        value: jsonEncode(accounts),
+      );
+
+      // Clean up the legacy keys if they pointed at this account.
+      if (await _secureStorage.read(key: _rememberEmailKey) == email) {
+        await _secureStorage.delete(key: _rememberEmailKey);
+        await _secureStorage.delete(key: _rememberPasswordKey);
+      }
+    } catch (_) {}
+  }
+
   Future<void> clearRememberedCredentials() async {
     try {
+      await _secureStorage.delete(key: _rememberAccountsKey);
       await _secureStorage.delete(key: _rememberEmailKey);
       await _secureStorage.delete(key: _rememberPasswordKey);
     } catch (_) {}

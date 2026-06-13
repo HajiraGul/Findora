@@ -8,6 +8,7 @@ class ItemModel {
   final ItemStatus status;
   final String location;
   final String postedBy;
+  final String? postedById;
   final String timeAgo;
   final String? imageUrl;
   final double latitude;
@@ -25,6 +26,7 @@ class ItemModel {
     required this.status,
     required this.location,
     required this.postedBy,
+    this.postedById,
     required this.timeAgo,
     this.imageUrl,
     required this.latitude,
@@ -44,6 +46,7 @@ class ItemModel {
       status: json['status'] == 'found' ? ItemStatus.found : ItemStatus.lost,
       location: json['location']?.toString() ?? '',
       postedBy: json['postedBy']?.toString() ?? 'Findora User',
+      postedById: json['postedById']?.toString(),
       timeAgo: json['timeAgo']?.toString() ?? '',
       imageUrl: json['imageUrl']?.toString(),
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
@@ -64,6 +67,7 @@ class ItemModel {
       status: status,
       location: location,
       postedBy: postedBy,
+      postedById: postedById,
       timeAgo: timeAgo,
       imageUrl: imageUrl,
       latitude: latitude,

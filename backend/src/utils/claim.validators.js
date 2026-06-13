@@ -1,11 +1,16 @@
 const mongoose = require('mongoose');
 
 const allowedProofTypes = [
+  // Ownership proof — owner claiming a FOUND item
   'Photo receipt',
   'Serial number',
   'Purchase invoice',
   'Photos of item',
   'Other documentation',
+  // Possession proof — finder responding to a LOST item
+  'Photo of item',
+  'Found location',
+  'Other',
 ];
 
 const allowedStatuses = ['pending', 'approved', 'rejected'];

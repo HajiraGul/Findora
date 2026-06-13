@@ -25,16 +25,28 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
   final _whenWhereController = TextEditingController();
   final _contentsController = TextEditingController();
   final _proofController = TextEditingController();
-  String _selectedProofType = 'Photo receipt';
+  late String _selectedProofType;
   bool _agreedToTerms = false;
 
-  final List<String> _proofTypes = [
-    'Photo receipt',
-    'Serial number',
-    'Purchase invoice',
-    'Photos of item',
-    'Other documentation',
-  ];
+  // Lost post  -> the responder is the FINDER (proving they have the item).
+  // Found post -> the responder is the OWNER (proving ownership).
+  bool get _isLostPost => widget.item.status == ItemStatus.lost;
+
+  List<String> get _proofTypes => _isLostPost
+      ? const ['Photo of item', 'Found location', 'Other']
+      : const [
+          'Photo receipt',
+          'Serial number',
+          'Purchase invoice',
+          'Photos of item',
+          'Other documentation',
+        ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedProofType = _proofTypes.first;
+  }
 
   @override
   void dispose() {
@@ -46,8 +58,31 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
     super.dispose();
   }
 
-  // Dynamic questions based on category
+  // Dynamic questions based on item direction + category
   List<Map<String, dynamic>> get _questions {
+    if (_isLostPost) {
+      // Finder responding to a lost post: prove possession + arrange handover,
+      // not ownership. Kept light — the owner already posted the item details.
+      return [
+        {
+          'question': 'Where did you find it / where is it now?',
+          'hint': 'e.g. Found near the cafeteria, I have it with me',
+          'controller': _whenWhereController,
+          'icon': Icons.location_on_outlined,
+          'required': true,
+          'maxLines': 2,
+        },
+        {
+          'question': 'Any detail the owner will recognize? (optional)',
+          'hint': 'e.g. black case, cracked top-right corner, sticker on back',
+          'controller': _marksController,
+          'icon': Icons.visibility_outlined,
+          'required': false,
+          'maxLines': 3,
+        },
+      ];
+    }
+
     final base = [
       {
         'question': 'What is the color of the item?',
@@ -92,7 +127,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
   void _submitClaim() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
-      _showError('Please confirm the ownership declaration');
+      _showError(_isLostPost
+          ? 'Please confirm the declaration'
+          : 'Please confirm the ownership declaration');
       return;
     }
 
@@ -167,19 +204,21 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Claim Submitted!',
-                style: TextStyle(
+              Text(
+                _isLostPost ? 'Report Sent!' : 'Claim Submitted!',
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Your claim has been submitted for admin review. You\'ll be notified once a decision is made.',
+              Text(
+                _isLostPost
+                    ? 'Your found-item report has been submitted for admin review. You\'ll be notified once a decision is made.'
+                    : 'Your claim has been submitted for admin review. You\'ll be notified once a decision is made.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xFF64748B),
                   height: 1.5,
@@ -234,9 +273,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Track My Claim',
-                    style: TextStyle(
+                  child: Text(
+                    _isLostPost ? 'Track My Report' : 'Track My Claim',
+                    style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -286,10 +325,13 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                     _buildItemSummaryCard(isLost, statusColor),
                     const SizedBox(height: 24),
                     _buildSectionHeader(
-                      icon: Icons.quiz_outlined,
-                      title: 'Ownership Verification',
-                      subtitle:
-                          'Answer these questions to prove ownership. Be as specific as possible.',
+                      icon: isLost
+                          ? Icons.check_circle_outline
+                          : Icons.quiz_outlined,
+                      title: isLost ? 'Match Details' : 'Ownership Verification',
+                      subtitle: isLost
+                          ? 'Share where the item is and any detail the owner will recognize.'
+                          : 'Answer these questions to prove ownership. Be as specific as possible.',
                     ),
                     const SizedBox(height: 20),
                     ..._questions.asMap().entries.map((entry) {
@@ -358,9 +400,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Submit Claim',
-                style: TextStyle(
+              Text(
+                isLost ? 'I Found This' : 'Claim This Item',
+                style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
@@ -369,7 +411,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Prove ownership to claim this item safely',
+                isLost
+                    ? 'Let the owner know you found their item'
+                    : 'Prove ownership to recover this item safely',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withOpacity(0.8),
@@ -767,21 +811,24 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Proof of Ownership',
-                      style: TextStyle(
+                      _isLostPost ? 'Photo of the Item' : 'Proof of Ownership',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF0F172A),
                       ),
                     ),
                     Text(
-                      'Optional but increases approval chance',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                      _isLostPost
+                          ? 'Optional — helps the owner recognize it'
+                          : 'Optional but increases approval chance',
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
@@ -789,9 +836,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Type of proof',
-            style: TextStyle(
+          Text(
+            _isLostPost ? 'What are you attaching?' : 'Type of proof',
+            style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: Color(0xFF374151),
@@ -926,10 +973,12 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          _noteRow('Your claim will be reviewed within 24–48 hours'),
+          _noteRow('Your submission will be reviewed within 24–48 hours'),
           _noteRow('Admin may contact you for additional verification'),
-          _noteRow('Direct contact with finder is enabled only after approval'),
-          _noteRow('False claims may result in account suspension'),
+          _noteRow(_isLostPost
+              ? 'Direct contact with the owner is enabled only after approval'
+              : 'Direct contact with the finder is enabled only after approval'),
+          _noteRow('False submissions may result in account suspension'),
         ],
       ),
     );
@@ -1001,10 +1050,12 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                   : null,
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Text(
-                'I declare that the information provided is true and accurate. I am the rightful owner of this item. I understand that false claims are a violation of Findora\'s terms.',
-                style: TextStyle(
+                _isLostPost
+                    ? 'I confirm I currently have this item and the details I provided are accurate. I understand that false reports are a violation of Findora\'s terms.'
+                    : 'I declare that the information provided is true and accurate. I am the rightful owner of this item. I understand that false claims are a violation of Findora\'s terms.',
+                style: const TextStyle(
                   fontSize: 13,
                   color: Color(0xFF374151),
                   height: 1.5,
@@ -1054,14 +1105,17 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
                       strokeWidth: 2.5,
                     ),
                   )
-                : const Row(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
+                      const Icon(Icons.send_rounded,
+                          color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
                       Text(
-                        'Submit Claim Request',
-                        style: TextStyle(
+                        _isLostPost
+                            ? 'Send to Owner'
+                            : 'Submit Claim Request',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,

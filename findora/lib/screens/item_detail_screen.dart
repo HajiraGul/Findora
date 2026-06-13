@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../controllers/claim_controller.dart';
+import '../models/claim_model.dart';
 import '../models/item_model.dart';
 import 'login_screen.dart';
 import 'claim_submission_screen.dart';
@@ -461,9 +464,9 @@ class ItemDetailScreen extends StatelessWidget {
 
                   // Guest banner or Claim button
                   if (isGuest)
-                    _buildGuestBanner(context)
+                    _buildGuestBanner(context, isLost)
                   else
-                    _buildClaimButton(context),
+                    _buildClaimButton(context, isLost),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -474,7 +477,16 @@ class ItemDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGuestBanner(BuildContext context) {
+  Widget _buildGuestBanner(BuildContext context, bool isLost) {
+    // On a lost post the visitor would be a finder reporting a match; on a
+    // found post they would be the owner claiming it back.
+    final title = isLost
+        ? 'Sign in to report you found this'
+        : 'Sign in to claim this item';
+    final subtitle = isLost
+        ? 'Create an account to let the owner know you found their item.'
+        : 'Create an account to submit a claim request and recover your item safely.';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -496,9 +508,10 @@ class ItemDetailScreen extends StatelessWidget {
         children: [
           const Icon(Icons.lock_outline_rounded, color: Colors.white, size: 32),
           const SizedBox(height: 10),
-          const Text(
-            'Sign in to claim this item',
-            style: TextStyle(
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: Colors.white,
@@ -506,7 +519,7 @@ class ItemDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Create an account to submit a claim request and recover your item safely.',
+            subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -542,7 +555,29 @@ class ItemDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildClaimButton(BuildContext context) {
+  Widget _buildClaimButton(BuildContext context, bool isLost) {
+    final claimController = Get.find<ClaimController>();
+    // Load the user's claims once so we know if they've already submitted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      claimController.ensureMyClaimsLoaded();
+    });
+
+    return Obx(() {
+      final existing = claimController.claimForItem(item.id);
+      if (existing != null) {
+        return _buildAlreadyClaimedState(existing, isLost);
+      }
+      return _buildActiveClaimButton(context, isLost);
+    });
+  }
+
+  Widget _buildActiveClaimButton(BuildContext context, bool isLost) {
+    // Lost post  -> the responder is the FINDER ("I found this").
+    // Found post -> the responder is the OWNER ("this is mine").
+    final buttonLabel = isLost ? 'I found this item' : 'This is mine — Claim it';
+    final buttonIcon =
+        isLost ? Icons.volunteer_activism_outlined : Icons.verified_user_outlined;
+
     return Column(
       children: [
         Container(
@@ -568,14 +603,14 @@ class ItemDetailScreen extends StatelessWidget {
                 builder: (_) => ClaimSubmissionScreen(item: item),
               ),
             ),
-            icon: const Icon(
-              Icons.pan_tool_outlined,
+            icon: Icon(
+              buttonIcon,
               color: Colors.white,
               size: 18,
             ),
-            label: const Text(
-              'Submit Claim Request',
-              style: TextStyle(
+            label: Text(
+              buttonLabel,
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
                 fontSize: 15,
@@ -607,6 +642,82 @@ class ItemDetailScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     color: Color(0xFF64748B),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Shown instead of the action button once the user has already submitted a
+  // claim/report for this item — the backend rejects duplicates anyway.
+  Widget _buildAlreadyClaimedState(ClaimModel claim, bool isLost) {
+    String statusLabel;
+    Color statusColor;
+    switch (claim.status) {
+      case ClaimStatus.approved:
+        statusLabel = 'Approved';
+        statusColor = const Color(0xFF16A34A);
+        break;
+      case ClaimStatus.rejected:
+        statusLabel = 'Rejected';
+        statusColor = const Color(0xFFEF4444);
+        break;
+      case ClaimStatus.pending:
+        statusLabel = 'Pending review';
+        statusColor = const Color(0xFFD97706);
+        break;
+    }
+
+    final actionWord = isLost ? 'report' : 'claim';
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          height: 54,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2E8F0),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_rounded, color: Color(0xFF64748B), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Already submitted',
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 16, color: statusColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'You already submitted a $actionWord for this item • $statusLabel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
                     height: 1.4,
                   ),
                 ),
