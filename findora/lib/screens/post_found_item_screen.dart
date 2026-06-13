@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../controllers/item_controller.dart';
+import '../models/picked_location.dart';
 import 'location_picker_screen.dart';
 import '../utils/picked_image_data.dart';
 
@@ -22,6 +23,8 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
   String? _selectedCategory;
   bool _isLoading = false;
   String? _pickedLocation;
+  double? _pickedLat;
+  double? _pickedLng;
   final _imagePicker = ImagePicker();
   final List<PickedImageData> _photos = [];
   String _handoverMethod = 'Police Station';
@@ -53,14 +56,16 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
   }
 
   void _pickLocation() async {
-    final result = await Navigator.push<String>(
+    final result = await Navigator.push<PickedLocation>(
       context,
       MaterialPageRoute(builder: (_) => const LocationPickerScreen()),
     );
     if (result != null) {
       setState(() {
-        _pickedLocation = result;
-        _locationController.text = result;
+        _pickedLocation = result.address;
+        _pickedLat = result.latitude;
+        _pickedLng = result.longitude;
+        _locationController.text = result.address;
       });
     }
   }
@@ -157,7 +162,11 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
         'description': _descController.text.trim(),
         'category': _selectedCategory,
         'status': 'found',
-        'location': _pickedLocation,
+        'location': {
+          'address': _pickedLocation,
+          if (_pickedLat != null) 'latitude': _pickedLat,
+          if (_pickedLng != null) 'longitude': _pickedLng,
+        },
         'handoverMethod': _handoverMethod,
         if (_contactController.text.trim().isNotEmpty)
           'contactInfo': _contactController.text.trim(),
@@ -712,80 +721,81 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
       child: Column(
         children: [
           GridView.count(
-            crossAxisCount: 4,
+            crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.25,
             children: [
-              GestureDetector(
-                onTap: _showPhotoSourceSheet,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFFCBD5E1),
-                      width: 1.5,
-                      strokeAlign: BorderSide.strokeAlignInside,
+              // Add photo button (hidden once 4 photos are added)
+              if (_photos.length < 4)
+                GestureDetector(
+                  onTap: _showPhotoSourceSheet,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFFCBD5E1),
+                        width: 1.5,
+                        strokeAlign: BorderSide.strokeAlignInside,
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.add_photo_alternate_outlined,
-                        color: Color(0xFF94A3B8),
-                        size: 22,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Add',
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: Colors.grey.shade400,
-                          fontWeight: FontWeight.w600,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.add_photo_alternate_outlined,
+                            color: Color(0xFF059669),
+                            size: 24,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Add Photo',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               ..._photos.asMap().entries.map(
                 (e) => Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFBBF7D0)),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(11),
-                        child: Image.memory(
-                          e.value.bytes,
-                          width: double.infinity,
-                          height: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.memory(e.value.bytes, fit: BoxFit.cover),
                     ),
                     Positioned(
-                      top: 3,
-                      right: 3,
+                      top: 5,
+                      right: 5,
                       child: GestureDetector(
                         onTap: () => _removePhoto(e.key),
                         child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEF4444),
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
                             shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
                           ),
                           child: const Icon(
                             Icons.close_rounded,
                             color: Colors.white,
-                            size: 11,
+                            size: 14,
                           ),
                         ),
                       ),
@@ -796,7 +806,7 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
             ],
           ),
           if (_photos.isEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               'Photos help the owner identify and verify their item',
               textAlign: TextAlign.center,

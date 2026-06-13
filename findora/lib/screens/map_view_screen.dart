@@ -1,11 +1,17 @@
-import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
+import 'package:latlong2/latlong.dart';
+
 import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
+import '../services/location_service.dart';
 import 'item_detail_screen.dart';
+
+// Fallback centre — IIU Islamabad.
+const LatLng _defaultCenter = LatLng(33.7215, 73.0433);
 
 class MapViewScreen extends StatefulWidget {
   const MapViewScreen({super.key});
@@ -16,26 +22,25 @@ class MapViewScreen extends StatefulWidget {
 
 class _MapViewScreenState extends State<MapViewScreen> {
   String _filter = 'All';
-  String _boundaryLevel = 'ADM2';
   ItemModel? _selectedItem;
   late final ItemController _ctrl;
   Worker? _itemsWatcher;
-  late final Future<Map<String, _GeoBoundaryData>> _boundariesFuture;
-  Map<String, _GeoBoundaryData>? _boundaries;
+
+  final MapController _mapController = MapController();
+  static const _locationService = LocationService();
+  bool _mapReady = false;
+  bool _autoFitted = false;
+  bool _locating = false;
 
   @override
   void initState() {
     super.initState();
     _ctrl = Get.find<ItemController>();
-    _boundariesFuture = _loadBoundaries();
-    _boundariesFuture.then((boundaries) {
-      if (mounted) {
-        setState(() => _boundaries = boundaries);
-      }
-    });
-    // Rebuild pins and stats when live items arrive from the API.
+    // Rebuild pins + stats (and fit the camera) when live items arrive.
     _itemsWatcher = ever(_ctrl.items, (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      _maybeAutoFit();
     });
   }
 
@@ -47,12 +52,69 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   List<ItemModel> get _filteredItems {
     final all = _ctrl.items;
-    if (_filter == 'All') return all.toList();
     if (_filter == 'Lost') {
       return all.where((i) => i.status == ItemStatus.lost).toList();
     }
-    return all.where((i) => i.status == ItemStatus.found).toList();
+    if (_filter == 'Found') {
+      return all.where((i) => i.status == ItemStatus.found).toList();
+    }
+    return all.toList();
   }
+
+  // Items that carry real coordinates (skip un-geocoded 0,0 placeholders).
+  List<ItemModel> get _mappableItems => _filteredItems
+      .where((i) => !(i.latitude == 0 && i.longitude == 0))
+      .toList();
+
+  // ── Camera ─────────────────────────────────────────────────────────────────
+
+  void _maybeAutoFit() {
+    if (_autoFitted) return;
+    final fitted = _fitToItems();
+    if (fitted) _autoFitted = true;
+  }
+
+  bool _fitToItems() {
+    if (!_mapReady) return false;
+    final points = _mappableItems
+        .map((i) => LatLng(i.latitude, i.longitude))
+        .toList();
+    if (points.isEmpty) return false;
+
+    if (points.length == 1) {
+      _mapController.move(points.first, 14);
+    } else {
+      _mapController.fitCamera(
+        CameraFit.coordinates(
+          coordinates: points,
+          padding: const EdgeInsets.fromLTRB(60, 140, 60, 180),
+          maxZoom: 16,
+        ),
+      );
+    }
+    return true;
+  }
+
+  Future<void> _recenterOnMe() async {
+    setState(() => _locating = true);
+    final result = await _locationService.getCurrentLocation();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (result.isOk && _mapReady) {
+      _mapController.move(LatLng(result.latitude!, result.longitude!), 15);
+    } else if (!result.isOk) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Couldn\'t get your current location'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -64,29 +126,18 @@ class _MapViewScreenState extends State<MapViewScreen> {
           Expanded(
             child: Stack(
               children: [
-                _buildGeoMap(),
-                // Filter chips
-                Positioned(
-                  top: 16,
-                  left: 0,
-                  right: 0,
-                  child: _buildFilterRow(),
-                ),
-                // Legend
-                Positioned(top: 70, left: 16, child: _buildBoundarySelector()),
+                _buildMap(),
+                Positioned(left: 12, bottom: 8, child: _buildAttribution()),
+                Positioned(top: 16, left: 0, right: 0, child: _buildFilterRow()),
                 Positioned(top: 70, right: 16, child: _buildLegend()),
-                // Item pins
-                ..._buildPins(context),
-                // Bottom sheet when item selected
                 if (_selectedItem != null)
                   Positioned(
                     bottom: 0,
                     left: 0,
                     right: 0,
                     child: _buildItemSheet(context, _selectedItem!),
-                  ),
-                // Dismiss when nothing selected
-                if (_selectedItem == null)
+                  )
+                else
                   Positioned(
                     bottom: 20,
                     left: 20,
@@ -101,6 +152,128 @@ class _MapViewScreenState extends State<MapViewScreen> {
     );
   }
 
+  Widget _buildMap() {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _defaultCenter,
+        initialZoom: 12,
+        minZoom: 3,
+        maxZoom: 19,
+        onMapReady: () {
+          _mapReady = true;
+          _maybeAutoFit();
+        },
+        onTap: (_, __) {
+          if (_selectedItem != null) setState(() => _selectedItem = null);
+        },
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.findora.app',
+          maxZoom: 19,
+        ),
+        // Shaded radius around each item so the lost/found areas stand out
+        // beneath the pins.
+        CircleLayer(circles: _buildAreaCircles()),
+        MarkerLayer(markers: _buildMarkers()),
+      ],
+    );
+  }
+
+  // Translucent radius around each item — highlights where lost/found items
+  // cluster. Red = lost, green = found; radius is in metres so it scales with
+  // zoom and overlapping circles merge into a single highlighted area.
+  List<CircleMarker> _buildAreaCircles() {
+    return _mappableItems.map((item) {
+      final isLost = item.status == ItemStatus.lost;
+      final color = isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
+      return CircleMarker(
+        point: LatLng(item.latitude, item.longitude),
+        radius: 130,
+        useRadiusInMeter: true,
+        color: color.withValues(alpha: 0.15),
+        borderColor: color.withValues(alpha: 0.55),
+        borderStrokeWidth: 1.5,
+      );
+    }).toList();
+  }
+
+  List<Marker> _buildMarkers() {
+    const tail = 7.0; // height of the pointer below the badge
+    return _mappableItems.map((item) {
+      final isLost = item.status == ItemStatus.lost;
+      final color = isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
+      final selected = _selectedItem?.id == item.id;
+      final badgeSize = selected ? 46.0 : 38.0;
+
+      return Marker(
+        point: LatLng(item.latitude, item.longitude),
+        width: badgeSize,
+        height: badgeSize + tail,
+        // Anchor the pointer's tip on the coordinate so the icon sits above
+        // the highlighted area, pointing down into it.
+        alignment: Alignment.topCenter,
+        child: GestureDetector(
+          onTap: () => setState(() => _selectedItem = item),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              // Pointer first, so the badge draws over its top edge.
+              Positioned(
+                bottom: 0,
+                child: CustomPaint(
+                  size: const Size(14, tail + 4),
+                  painter: _PinPointerPainter(color),
+                ),
+              ),
+              Container(
+                width: badgeSize,
+                height: badgeSize,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: selected ? 3 : 2.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.45),
+                      blurRadius: selected ? 12 : 8,
+                      spreadRadius: selected ? 2 : 1,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _categoryIcon(item.category),
+                  color: Colors.white,
+                  size: selected ? 22 : 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildAttribution() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        '© OpenStreetMap',
+        style: TextStyle(fontSize: 9, color: Color(0xFF64748B)),
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
@@ -108,10 +281,6 @@ class _MapViewScreenState extends State<MapViewScreen> {
           colors: [Color(0xFF1D4ED8), Color(0xFF2563EB), Color(0xFF3B82F6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(0),
-          bottomRight: Radius.circular(0),
         ),
       ),
       child: SafeArea(
@@ -126,7 +295,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -150,69 +319,40 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       ),
                     ),
                     Text(
-                      'IIU Campus, Islamabad',
+                      'Lost & found items around you',
                       style: TextStyle(fontSize: 12, color: Colors.white70),
                     ),
                   ],
                 ),
               ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.my_location_rounded,
-                  color: Colors.white,
-                  size: 18,
+              GestureDetector(
+                onTap: _locating ? null : _recenterOnMe,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: _locating
+                      ? const Padding(
+                          padding: EdgeInsets.all(11),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.my_location_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Future<Map<String, _GeoBoundaryData>> _loadBoundaries() async {
-    final entries = {
-      'ADM1': 'assets/geo/geoBoundaries-PAK-ADM1_simplified.geojson',
-      'ADM2': 'assets/geo/geoBoundaries-PAK-ADM2_simplified.geojson',
-      'ADM3': 'assets/geo/geoBoundaries-PAK-ADM3_simplified.geojson',
-    };
-
-    final loaded = <String, _GeoBoundaryData>{};
-    for (final entry in entries.entries) {
-      final raw = await rootBundle.loadString(entry.value);
-      loaded[entry.key] = _GeoBoundaryData.fromGeoJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
-    }
-    return loaded;
-  }
-
-  Widget _buildGeoMap() {
-    return FutureBuilder<Map<String, _GeoBoundaryData>>(
-      future: _boundariesFuture,
-      builder: (context, snapshot) {
-        final data =
-            snapshot.data?[_boundaryLevel] ?? _boundaries?[_boundaryLevel];
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: const Color(0xFFE8EFF5),
-          child: data == null
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF2563EB),
-                    strokeWidth: 2.5,
-                  ),
-                )
-              : CustomPaint(painter: _PakistanBoundaryPainter(data)),
-        );
-      },
     );
   }
 
@@ -223,16 +363,19 @@ class _MapViewScreenState extends State<MapViewScreen> {
       child: Row(
         children: ['All', 'Lost', 'Found'].map((f) {
           final isSelected = _filter == f;
-          Color color = f == 'Lost'
+          final Color color = f == 'Lost'
               ? const Color(0xFFEF4444)
               : f == 'Found'
-              ? const Color(0xFF16A34A)
-              : const Color(0xFF2563EB);
+                  ? const Color(0xFF16A34A)
+                  : const Color(0xFF2563EB);
           return GestureDetector(
-            onTap: () => setState(() {
-              _filter = f;
-              _selectedItem = null;
-            }),
+            onTap: () {
+              setState(() {
+                _filter = f;
+                _selectedItem = null;
+              });
+              _fitToItems();
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 10),
@@ -242,7 +385,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -270,7 +413,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -280,49 +423,6 @@ class _MapViewScreenState extends State<MapViewScreen> {
           const SizedBox(height: 6),
           _legendRow(const Color(0xFF16A34A), 'Found'),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBoundarySelector() {
-    const levels = {'ADM1': 'Province', 'ADM2': 'District', 'ADM3': 'Tehsil'};
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: levels.entries.map((entry) {
-          final selected = _boundaryLevel == entry.key;
-          return GestureDetector(
-            onTap: () => setState(() {
-              _boundaryLevel = entry.key;
-              _selectedItem = null;
-            }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: selected ? const Color(0xFF2563EB) : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                entry.value,
-                style: TextStyle(
-                  color: selected ? Colors.white : const Color(0xFF475569),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
@@ -345,113 +445,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
     );
   }
 
-  List<Widget> _buildPins(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final mapHeight = size.height - 200.0;
-    final bounds =
-        _boundaries?[_boundaryLevel]?.bounds ??
-        const _LatLngBounds(
-          minLat: 23.5,
-          maxLat: 37.2,
-          minLng: 60.8,
-          maxLng: 77.2,
-        );
-
-    return _filteredItems.map((item) {
-      final point = _projectLatLng(
-        latitude: item.latitude,
-        longitude: item.longitude,
-        bounds: bounds,
-        size: Size(size.width, mapHeight),
-        padding: const EdgeInsets.fromLTRB(18, 120, 18, 92),
-      );
-
-      final isLost = item.status == ItemStatus.lost;
-      final pinColor = isLost
-          ? const Color(0xFFEF4444)
-          : const Color(0xFF16A34A);
-
-      return Positioned(
-        left: point.dx - 18,
-        top: point.dy,
-        child: GestureDetector(
-          onTap: () => setState(() => _selectedItem = item),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: _selectedItem?.id == item.id ? 40 : 34,
-                  height: _selectedItem?.id == item.id ? 40 : 34,
-                  decoration: BoxDecoration(
-                    color: pinColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: pinColor.withOpacity(0.4),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    _categoryIcon(item.category),
-                    color: Colors.white,
-                    size: _selectedItem?.id == item.id ? 20 : 16,
-                  ),
-                ),
-                Container(width: 2, height: 8, color: pinColor),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: pinColor.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }).toList();
-  }
-
-  Offset _projectLatLng({
-    required double latitude,
-    required double longitude,
-    required _LatLngBounds bounds,
-    required Size size,
-    required EdgeInsets padding,
-  }) {
-    if (latitude == 0 && longitude == 0) {
-      return Offset(size.width / 2, size.height / 2);
-    }
-
-    final innerWidth = size.width - padding.horizontal;
-    final innerHeight = size.height - padding.vertical;
-    final lngSpan = bounds.maxLng - bounds.minLng;
-    final latSpan = bounds.maxLat - bounds.minLat;
-    final x =
-        padding.left + ((longitude - bounds.minLng) / lngSpan) * innerWidth;
-    final y =
-        padding.top + (1 - (latitude - bounds.minLat) / latSpan) * innerHeight;
-
-    return Offset(
-      x.clamp(12.0, size.width - 12.0),
-      y.clamp(84.0, size.height - 24.0),
-    );
-  }
-
   Widget _buildMapStats() {
-    final lostCount = _filteredItems
-        .where((i) => i.status == ItemStatus.lost)
-        .length;
-    final foundCount = _filteredItems
-        .where((i) => i.status == ItemStatus.found)
-        .length;
+    final lostCount =
+        _filteredItems.where((i) => i.status == ItemStatus.lost).length;
+    final foundCount =
+        _filteredItems.where((i) => i.status == ItemStatus.found).length;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -459,7 +457,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -468,11 +466,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _statItem(
-            lostCount.toString(),
-            'Lost Items',
-            const Color(0xFFEF4444),
-          ),
+          _statItem(lostCount.toString(), 'Lost Items', const Color(0xFFEF4444)),
           Container(width: 1, height: 30, color: const Color(0xFFE2E8F0)),
           _statItem(
             foundCount.toString(),
@@ -513,9 +507,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   Widget _buildItemSheet(BuildContext context, ItemModel item) {
     final isLost = item.status == ItemStatus.lost;
-    final statusColor = isLost
-        ? const Color(0xFFEF4444)
-        : const Color(0xFF16A34A);
+    final statusColor =
+        isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -532,7 +525,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
+              color: Colors.black.withValues(alpha: 0.12),
               blurRadius: 20,
               offset: const Offset(0, -4),
             ),
@@ -709,242 +702,27 @@ class _MapViewScreenState extends State<MapViewScreen> {
   }
 }
 
-class _PakistanBoundaryPainter extends CustomPainter {
-  final _GeoBoundaryData data;
+// Downward triangle drawn beneath a marker badge so it reads as a map pin
+// whose tip points at the item's exact coordinate.
+class _PinPointerPainter extends CustomPainter {
+  const _PinPointerPainter(this.color);
 
-  const _PakistanBoundaryPainter(this.data);
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = const Color(0xFFCBD5E1).withOpacity(0.45)
-      ..strokeWidth = 0.5;
-    final fillPaint = Paint()
-      ..color = const Color(0xFFDBEAFE)
+    final paint = Paint()
+      ..color = color
       ..style = PaintingStyle.fill;
-    final borderPaint = Paint()
-      ..color = const Color(0xFF2563EB).withOpacity(0.72)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = data.features.length > 200 ? 0.45 : 0.75;
-    for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-
-    final padding = EdgeInsets.fromLTRB(
-      size.width * 0.08,
-      size.height * 0.12,
-      size.width * 0.08,
-      size.height * 0.1,
-    );
-
-    for (final feature in data.features) {
-      for (final ring in feature.rings) {
-        if (ring.length < 3) continue;
-        final path = Path();
-        for (var i = 0; i < ring.length; i++) {
-          final point = _project(
-            latitude: ring[i].latitude,
-            longitude: ring[i].longitude,
-            bounds: data.bounds,
-            size: size,
-            padding: padding,
-          );
-          if (i == 0) {
-            path.moveTo(point.dx, point.dy);
-          } else {
-            path.lineTo(point.dx, point.dy);
-          }
-        }
-        path.close();
-        canvas.drawPath(path, fillPaint);
-        canvas.drawPath(path, borderPaint);
-      }
-    }
-
-    final labelPainter = TextPainter(
-      text: const TextSpan(
-        text: 'Pakistan boundaries',
-        style: TextStyle(
-          color: Color(0xFF475569),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    labelPainter.paint(
-      canvas,
-      Offset(size.width - labelPainter.width - 18, size.height - 34),
-    );
-
-    if (data.features.length <= 10) {
-      for (final feature in data.features) {
-        final label = feature.name;
-        final center = feature.center;
-        if (label.isEmpty || center == null) continue;
-        final point = _project(
-          latitude: center.latitude,
-          longitude: center.longitude,
-          bounds: data.bounds,
-          size: size,
-          padding: padding,
-        );
-        final painter = TextPainter(
-          text: TextSpan(
-            text: label,
-            style: const TextStyle(
-              color: Color(0xFF1E3A8A),
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          ellipsis: '',
-        )..layout(maxWidth: 92);
-        painter.paint(canvas, point - Offset(painter.width / 2, 6));
-      }
-    }
-  }
-
-  Offset _project({
-    required double latitude,
-    required double longitude,
-    required _LatLngBounds bounds,
-    required Size size,
-    required EdgeInsets padding,
-  }) {
-    final x =
-        padding.left +
-        ((longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) *
-            (size.width - padding.horizontal);
-    final y =
-        padding.top +
-        (1 - (latitude - bounds.minLat) / (bounds.maxLat - bounds.minLat)) *
-            (size.height - padding.vertical);
-    return Offset(x, y);
+    final path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _PakistanBoundaryPainter oldDelegate) {
-    return oldDelegate.data != data;
-  }
-}
-
-class _GeoBoundaryData {
-  final List<_GeoBoundaryFeature> features;
-  final _LatLngBounds bounds;
-
-  const _GeoBoundaryData({required this.features, required this.bounds});
-
-  factory _GeoBoundaryData.fromGeoJson(Map<String, dynamic> json) {
-    final features = <_GeoBoundaryFeature>[];
-    var minLat = double.infinity;
-    var maxLat = double.negativeInfinity;
-    var minLng = double.infinity;
-    var maxLng = double.negativeInfinity;
-
-    final rawFeatures = json['features'] as List<dynamic>? ?? [];
-    for (final rawFeature in rawFeatures) {
-      if (rawFeature is! Map<String, dynamic>) continue;
-
-      final properties =
-          rawFeature['properties'] as Map<String, dynamic>? ?? {};
-      final name = properties['shapeName']?.toString() ?? '';
-      final geometry = rawFeature['geometry'] as Map<String, dynamic>? ?? {};
-      final geometryType = geometry['type']?.toString();
-      final coordinates = geometry['coordinates'];
-      final rings = <List<_GeoPoint>>[];
-
-      void addRing(List<dynamic> rawRing) {
-        final ring = <_GeoPoint>[];
-        for (final rawPoint in rawRing) {
-          if (rawPoint is! List || rawPoint.length < 2) continue;
-          final longitude = (rawPoint[0] as num).toDouble();
-          final latitude = (rawPoint[1] as num).toDouble();
-          minLat = latitude < minLat ? latitude : minLat;
-          maxLat = latitude > maxLat ? latitude : maxLat;
-          minLng = longitude < minLng ? longitude : minLng;
-          maxLng = longitude > maxLng ? longitude : maxLng;
-          ring.add(_GeoPoint(latitude: latitude, longitude: longitude));
-        }
-        if (ring.isNotEmpty) rings.add(ring);
-      }
-
-      if (geometryType == 'Polygon' && coordinates is List) {
-        for (final rawRing in coordinates) {
-          if (rawRing is List) addRing(rawRing);
-        }
-      } else if (geometryType == 'MultiPolygon' && coordinates is List) {
-        for (final polygon in coordinates) {
-          if (polygon is! List) continue;
-          for (final rawRing in polygon) {
-            if (rawRing is List) addRing(rawRing);
-          }
-        }
-      }
-
-      if (rings.isNotEmpty) {
-        features.add(_GeoBoundaryFeature(name: name, rings: rings));
-      }
-    }
-
-    return _GeoBoundaryData(
-      features: features,
-      bounds: _LatLngBounds(
-        minLat: minLat,
-        maxLat: maxLat,
-        minLng: minLng,
-        maxLng: maxLng,
-      ),
-    );
-  }
-}
-
-class _GeoBoundaryFeature {
-  final String name;
-  final List<List<_GeoPoint>> rings;
-
-  const _GeoBoundaryFeature({required this.name, required this.rings});
-
-  _GeoPoint? get center {
-    var latitude = 0.0;
-    var longitude = 0.0;
-    var count = 0;
-
-    for (final ring in rings) {
-      for (final point in ring) {
-        latitude += point.latitude;
-        longitude += point.longitude;
-        count++;
-      }
-    }
-
-    if (count == 0) return null;
-    return _GeoPoint(latitude: latitude / count, longitude: longitude / count);
-  }
-}
-
-class _GeoPoint {
-  final double latitude;
-  final double longitude;
-
-  const _GeoPoint({required this.latitude, required this.longitude});
-}
-
-class _LatLngBounds {
-  final double minLat;
-  final double maxLat;
-  final double minLng;
-  final double maxLng;
-
-  const _LatLngBounds({
-    required this.minLat,
-    required this.maxLat,
-    required this.minLng,
-    required this.maxLng,
-  });
+  bool shouldRepaint(_PinPointerPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

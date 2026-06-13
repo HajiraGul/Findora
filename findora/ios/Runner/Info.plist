@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Findora uses the camera to let you add profile and item photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Findora uses your location to show lost and found items near you.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Findora uses your photo library to let you choose profile and item photos.</string>
 	<key>UIApplicationSceneManifest</key>

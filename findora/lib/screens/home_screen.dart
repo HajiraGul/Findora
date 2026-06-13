@@ -185,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -366,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: GestureDetector(
         onTap: () => Navigator.push(
           context,
@@ -424,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildTabBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFEFF6FF),
@@ -470,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildCategoryBar() {
     return Padding(
-      padding: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.only(top: 12),
       child: SizedBox(
         height: 38,
         child: ListView.builder(
@@ -519,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen>
       return RefreshIndicator(
         onRefresh: () => _itemController.fetchItems(),
         child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 100),
           itemCount: items.length,
           itemBuilder: (_, i) => ItemCard(
             item: items[i],
