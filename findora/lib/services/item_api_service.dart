@@ -82,4 +82,23 @@ class ItemApiService extends GetConnect {
   }) {
     return post('/items/$id/resolve', {}, headers: _auth(token));
   }
+
+  Future<Response<dynamic>> getMatches({
+    required String token,
+    required String id,
+  }) {
+    return get('/items/$id/matches', headers: _auth(token));
+  }
+
+  Future<Response<dynamic>> notifyMatch({
+    required String token,
+    required String id,
+    required String matchItemId,
+  }) {
+    return post(
+      '/items/$id/notify-match',
+      {'matchItemId': matchItemId},
+      headers: _auth(token),
+    );
+  }
 }

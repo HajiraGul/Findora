@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../controllers/item_controller.dart';
 import '../models/item_model.dart';
 import 'item_detail_screen.dart';
+import 'match_suggestions_screen.dart';
 
 class MyPostsScreen extends StatefulWidget {
   const MyPostsScreen({super.key});
@@ -134,6 +135,13 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                       builder: (_) => ItemDetailScreen(item: _ctrl.myItems[i]),
                     ),
                   ),
+                  onViewMatches: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          MatchSuggestionsScreen(itemId: _ctrl.myItems[i].id),
+                    ),
+                  ),
                   onDelete: () => _confirmDelete(ctx, _ctrl.myItems[i]),
                 ),
               ),
@@ -149,12 +157,14 @@ class _PostCard extends StatelessWidget {
   final ItemModel item;
   final IconData icon;
   final VoidCallback onTap;
+  final VoidCallback onViewMatches;
   final VoidCallback onDelete;
 
   const _PostCard({
     required this.item,
     required this.icon,
     required this.onTap,
+    required this.onViewMatches,
     required this.onDelete,
   });
 
@@ -204,16 +214,57 @@ class _PostCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(item.location, style: const TextStyle(color: Colors.black54)),
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(.12),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                              color: statusColor, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      // Matches are only meaningful while the post is still open.
+                      if (!item.isResolved)
+                        GestureDetector(
+                          onTap: onViewMatches,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(.10),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: const Color(0xFF2563EB).withOpacity(.25),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.auto_awesome_rounded,
+                                    size: 14, color: Color(0xFF2563EB)),
+                                SizedBox(width: 5),
+                                Text(
+                                  'View matches',
+                                  style: TextStyle(
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

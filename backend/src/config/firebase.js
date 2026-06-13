@@ -1,8 +1,11 @@
 const path = require('path');
 const { initializeApp, applicationDefault, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 
+let firebaseApp = null;
 let firestore = null;
+let messaging = null;
 
 function isFirebaseConfigured() {
   return Boolean(
@@ -20,12 +23,12 @@ function resolveServiceAccountPath() {
   return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
 }
 
-function getDb() {
-  if (firestore) return firestore;
+function getApp() {
+  if (firebaseApp) return firebaseApp;
 
   if (!isFirebaseConfigured()) {
     const error = new Error(
-      'Chat is not configured. Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_PATH in backend/.env'
+      'Firebase is not configured. Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_PATH in backend/.env'
     );
     error.statusCode = 503;
     throw error;
@@ -33,7 +36,7 @@ function getDb() {
 
   const serviceAccountPath = resolveServiceAccountPath();
 
-  const app = getApps().length
+  firebaseApp = getApps().length
     ? getApps()[0]
     : initializeApp({
         credential: serviceAccountPath
@@ -42,11 +45,26 @@ function getDb() {
         projectId: process.env.FIREBASE_PROJECT_ID,
       });
 
-  firestore = getFirestore(app);
+  return firebaseApp;
+}
+
+function getDb() {
+  if (firestore) return firestore;
+  firestore = getFirestore(getApp());
   return firestore;
+}
+
+// FCM client, used by the notification service to push directly from the
+// backend (the Admin SDK can push without a Cloud Function, since the backend
+// itself authors the notifications — unlike chat, where the client writes).
+function getMessagingClient() {
+  if (messaging) return messaging;
+  messaging = getMessaging(getApp());
+  return messaging;
 }
 
 module.exports = {
   getDb,
+  getMessagingClient,
   isFirebaseConfigured,
 };

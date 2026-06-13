@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/item_controller.dart';
+import '../controllers/notification_controller.dart';
 import '../models/item_model.dart';
 import '../widgets/item_card.dart';
 import '../widgets/category_chip.dart';
@@ -14,6 +15,7 @@ import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'post_item_screen.dart';
 import 'ble_tracking_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 
@@ -52,6 +54,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     _itemController = Get.find<ItemController>();
     _itemController.fetchItems();
+    if (!widget.isGuest) {
+      Get.find<NotificationController>().fetch();
+    }
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       setState(() {
@@ -260,6 +265,8 @@ class _HomeScreenState extends State<HomeScreen>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      _headerBell(),
+                      const SizedBox(width: 6),
                       _headerIconButton(
                         icon: Icons.chat_bubble_outline_rounded,
                         onTap: () {
@@ -316,6 +323,76 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Bell with an unread-count badge. The badge counts ALL unread notifications
+  // (matches now, claim/account events later), so it stays correct as more
+  // notification types are added.
+  Widget _headerBell() {
+    return GestureDetector(
+      onTap: () {
+        if (widget.isGuest) {
+          _showGuestBlock('view notifications');
+        } else {
+          final notif = Get.find<NotificationController>();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+          ).then((_) => notif.fetchUnreadCount());
+        }
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.25),
+                width: 1,
+              ),
+            ),
+            child: const Icon(
+              Icons.notifications_none_rounded,
+              color: Colors.white,
+              size: 17,
+            ),
+          ),
+          if (!widget.isGuest)
+            Positioned(
+              right: -3,
+              top: -3,
+              child: Obx(() {
+                final count =
+                    Get.find<NotificationController>().unreadCount.value;
+                if (count == 0) return const SizedBox.shrink();
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  constraints: const BoxConstraints(minWidth: 16),
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF2563EB), width: 1.5),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    count > 9 ? '9+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              }),
+            ),
+        ],
       ),
     );
   }

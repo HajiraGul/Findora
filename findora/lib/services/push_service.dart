@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get/get.dart';
 
+import '../controllers/notification_controller.dart';
+
 /// Registers this device's FCM token so the `onNewChatMessage` Cloud Function
 /// can target it, and surfaces foreground messages. Tokens are stored at
 /// `device_tokens/{backendUserId}` — the same backend (Mongo) user id used in
@@ -55,6 +57,12 @@ class PushService {
     if (_foregroundReady) return;
     _foregroundReady = true;
     FirebaseMessaging.onMessage.listen((message) {
+      // Keep the notification feed + bell badge live for any pushed event
+      // (match alerts, chat, etc.).
+      if (Get.isRegistered<NotificationController>()) {
+        Get.find<NotificationController>().fetch();
+      }
+
       final n = message.notification;
       if (n == null) return;
       Get.snackbar(

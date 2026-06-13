@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
 const { uploadItemImages } = require('./image.service');
+const { notifyMatchesForNewItem } = require('./notification.service');
 
 function buildItemQuery(filters = {}) {
   const query = {};
@@ -108,6 +109,9 @@ async function createItem(userId, payload) {
     postedBy: userId,
   });
   await item.populate('postedBy', 'fullName');
+
+  // Fire smart-match notifications without blocking the create response.
+  notifyMatchesForNewItem(item).catch(() => {});
 
   return item.toSafeObject();
 }

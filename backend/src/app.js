@@ -10,6 +10,7 @@ const chatRoutes = require('./routes/chat.routes');
 const claimRoutes = require('./routes/claim.routes');
 const healthRoutes = require('./routes/health.routes');
 const itemRoutes = require('./routes/item.routes');
+const notificationRoutes = require('./routes/notification.routes');
 const userRoutes = require('./routes/user.routes');
 const { notFound, errorHandler } = require('./middleware/error.middleware');
 
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);
 

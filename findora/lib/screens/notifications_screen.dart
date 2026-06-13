@@ -1,92 +1,143 @@
 import 'package:flutter/material.dart';
-import '../widgets/premium_app_bar.dart';
+import 'package:get/get.dart';
 
-class NotificationsScreen extends StatelessWidget {
+import '../controllers/notification_controller.dart';
+import '../models/notification_model.dart';
+import 'match_suggestions_screen.dart';
+
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final _controller = Get.find<NotificationController>();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.fetch();
+  }
+
+  void _onTap(AppNotification n) {
+    _controller.markRead(n.id);
+    final itemId = n.itemId;
+    if (n.type == 'match' && itemId != null && itemId.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MatchSuggestionsScreen(itemId: itemId),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const PremiumAppBar(title: "Notifications"),
-      body: Padding(
-        padding: const EdgeInsets.all(18),
-        child: ListView(
-          children: [
-            _notificationCard(
-              context,
-              icon: Icons.check_circle_rounded,
-              iconColor: Colors.green,
-              title: "New Match Found",
-              subtitle:
-                  "A black wallet reported near CS Department matches your post.",
-              time: "2 min ago",
-              unread: true,
-            ),
-            const SizedBox(height: 16),
-            _notificationCard(
-              context,
-              icon: Icons.verified_rounded,
-              iconColor: Colors.blue,
-              title: "Claim Approved",
-              subtitle:
-                  "Your submitted ownership proof has been approved successfully.",
-              time: "20 min ago",
-              unread: true,
-            ),
-            const SizedBox(height: 16),
-            _notificationCard(
-              context,
-              icon: Icons.info_rounded,
-              iconColor: Colors.orange,
-              title: "Reminder",
-              subtitle:
-                  "Keep notifications enabled to receive instant match alerts.",
-              time: "1 hour ago",
-              unread: false,
-            ),
-            const SizedBox(height: 16),
-            _notificationCard(
-              context,
-              icon: Icons.campaign_rounded,
-              iconColor: Colors.purple,
-              title: "Campus Announcement",
-              subtitle:
-                  "Lost items desk timings updated for the upcoming semester.",
-              time: "Yesterday",
-              unread: false,
-            ),
-          ],
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: const Color(0xFF0A3D62),
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0A3D62),
+          ),
         ),
+        actions: [
+          Obx(() {
+            final hasUnread = _controller.unreadCount.value > 0;
+            if (!hasUnread) return const SizedBox.shrink();
+            return TextButton(
+              onPressed: _controller.markAllRead,
+              child: const Text(
+                'Mark all read',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(width: 6),
+        ],
       ),
+      body: Obx(() {
+        if (_controller.isLoading.value && _controller.notifications.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final items = _controller.notifications;
+        if (items.isEmpty) return _emptyState();
+        return RefreshIndicator(
+          onRefresh: _controller.fetch,
+          child: ListView.separated(
+            padding: const EdgeInsets.all(18),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (_, i) => _notificationCard(items[i]),
+          ),
+        );
+      }),
     );
   }
 
-  Widget _notificationCard(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required String time,
-    required bool unread,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: () {
-        _showNotificationDetail(context, title, subtitle, time);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Colors.white, Color(0xffF2F9FF)],
+  Widget _emptyState() {
+    return ListView(
+      children: [
+        const SizedBox(height: 140),
+        Icon(Icons.notifications_none_rounded,
+            size: 64, color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        const Center(
+          child: Text(
+            'You\'re all caught up',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF94A3B8),
+            ),
           ),
-          borderRadius: BorderRadius.circular(24),
+        ),
+        const SizedBox(height: 6),
+        const Center(
+          child: Text(
+            'Match alerts and claim updates will show up here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _notificationCard(AppNotification n) {
+    final visual = _visualFor(n.type);
+    final tappable = n.type == 'match' && (n.itemId?.isNotEmpty ?? false);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: tappable ? () => _onTap(n) : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: n.isRead ? Colors.white : const Color(0xFFF5F9FF),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: n.isRead ? const Color(0xFFEFF2F6) : const Color(0xFFDBEAFE),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.withOpacity(.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -94,15 +145,15 @@ class NotificationsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              height: 55,
-              width: 55,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(.12),
-                borderRadius: BorderRadius.circular(18),
+                color: visual.$2.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: iconColor, size: 28),
+              child: Icon(visual.$1, color: visual.$2, size: 20),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,98 +162,69 @@ class NotificationsScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xff17324D),
+                          n.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                n.isRead ? FontWeight.w600 : FontWeight.w700,
+                            color: const Color(0xFF0F172A),
                           ),
                         ),
                       ),
-                      if (unread)
+                      if (!n.isRead)
                         Container(
-                          height: 10,
-                          width: 10,
+                          width: 8,
+                          height: 8,
                           decoration: const BoxDecoration(
-                            color: Color(0xff0A84FF),
+                            color: Color(0xFF2563EB),
                             shape: BoxShape.circle,
                           ),
                         ),
                     ],
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    n.body,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    subtitle,
-                    style: const TextStyle(height: 1.5, color: Colors.black54),
+                    n.timeAgo,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(time, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
+            if (tappable)
+              const Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Icon(Icons.chevron_right_rounded,
+                    color: Color(0xFFCBD5E1)),
+              ),
           ],
         ),
       ),
     );
   }
 
-  static void _showNotificationDetail(
-    BuildContext context,
-    String title,
-    String subtitle,
-    String time,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Wrap(
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xff17324D),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                subtitle,
-                style: const TextStyle(height: 1.6, color: Colors.black54),
-              ),
-              const SizedBox(height: 14),
-              Text(time, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                  backgroundColor: const Color(0xff0A84FF),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text("Mark as Read"),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text("Delete"),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  (IconData, Color) _visualFor(String type) {
+    switch (type) {
+      case 'match':
+        return (Icons.auto_awesome_rounded, const Color(0xFF16A34A));
+      case 'claim':
+        return (Icons.verified_rounded, const Color(0xFF2563EB));
+      case 'account':
+        return (Icons.shield_outlined, const Color(0xFFD97706));
+      default:
+        return (Icons.campaign_rounded, const Color(0xFF7C3AED));
+    }
   }
 }

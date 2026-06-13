@@ -15,6 +15,8 @@ const {
   addItemImages,
   listNearbyItems,
 } = require('../services/item.service');
+const { getMatchesForItem } = require('../services/match.service');
+const { notifyOwnerOfMatch } = require('../services/notification.service');
 
 async function index(req, res, next) {
   try {
@@ -163,6 +165,33 @@ async function images(req, res, next) {
   }
 }
 
+async function matches(req, res, next) {
+  try {
+    const result = await getMatchesForItem(req.params.id, req.user);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function notifyMatch(req, res, next) {
+  try {
+    const result = await notifyOwnerOfMatch(
+      req.user,
+      req.params.id,
+      req.body.matchItemId
+    );
+
+    return res.status(200).json({
+      message: 'Owner notified successfully',
+      ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   index,
   mine,
@@ -173,4 +202,6 @@ module.exports = {
   destroy,
   resolve,
   images,
+  matches,
+  notifyMatch,
 };

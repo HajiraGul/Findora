@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../controllers/auth_controller.dart';
 import '../models/item_model.dart';
+import '../models/match_suggestion.dart';
 import '../services/item_api_service.dart';
 
 class ItemController extends GetxController {
@@ -131,6 +132,49 @@ class ItemController extends GetxController {
         return true;
       }
       return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Fetches scored match suggestions for one of the user's own posts. Returns
+  /// the source item plus the ranked candidates, or null on failure.
+  Future<({ItemModel source, List<MatchSuggestion> matches})?> fetchMatches(
+    String itemId,
+  ) async {
+    if (_token.isEmpty) return null;
+    try {
+      final response = await _api.getMatches(token: _token, id: itemId);
+      if (response.isOk && response.body is Map) {
+        final sourceJson = response.body['sourceItem'];
+        final list = (response.body['matches'] as List?) ?? [];
+        if (sourceJson is! Map) return null;
+        return (
+          source: ItemModel.fromJson(sourceJson.cast<String, dynamic>()),
+          matches: list
+              .map((j) => MatchSuggestion.fromJson(j as Map<String, dynamic>))
+              .toList(),
+        );
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Found-item owner nudges the lost-item owner that a match was spotted.
+  Future<bool> notifyMatch({
+    required String itemId,
+    required String matchItemId,
+  }) async {
+    if (_token.isEmpty) return false;
+    try {
+      final response = await _api.notifyMatch(
+        token: _token,
+        id: itemId,
+        matchItemId: matchItemId,
+      );
+      return response.isOk;
     } catch (_) {
       return false;
     }
