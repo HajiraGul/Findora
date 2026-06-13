@@ -72,6 +72,32 @@ async function ensureChatForClaim(claimId) {
   return { id: ref.id, ...chat };
 }
 
+// Lets a chat participant (the claimant or the item poster) open the chat for
+// an approved claim, creating it on demand if it was never made — e.g. the
+// claim was approved while Firebase wasn't configured yet. Idempotent.
+async function openChatForClaim(claimId, user) {
+  const claim = await Claim.findById(claimId).populate('item', 'postedBy');
+  if (!claim) {
+    const error = new Error('Claim not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const posterId =
+    claim.item && claim.item.postedBy ? claim.item.postedBy.toString() : null;
+  const claimantId = claim.claimant.toString();
+  const uid = user._id.toString();
+
+  if (uid !== posterId && uid !== claimantId && user.role !== 'admin') {
+    const error = new Error('Access denied');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // ensureChatForClaim enforces that the claim is approved before unlocking.
+  return ensureChatForClaim(claimId);
+}
+
 async function getMyChats(user) {
   const db = getDb();
   const snapshot = await db
@@ -188,6 +214,7 @@ async function setChatEnabled(chatId, enabled) {
 
 module.exports = {
   ensureChatForClaim,
+  openChatForClaim,
   getMyChats,
   getChatById,
   listMessages,

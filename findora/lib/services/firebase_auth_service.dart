@@ -44,8 +44,23 @@ class FirebaseAuthService {
           rethrow;
         }
       }
-    } catch (_) {
-      // Ignored on purpose; see doc comment above.
+    } on FirebaseAuthException catch (e) {
+      // Non-fatal, but DON'T swallow silently: with no Firebase identity, every
+      // Firestore chat read/write is rejected with permission-denied and the
+      // real cause stays invisible (which is exactly what happened here).
+      if (e.code == 'operation-not-allowed' ||
+          e.code == 'configuration-not-found') {
+        // ignore: avoid_print
+        print('[firebase-auth] Email/Password sign-in is DISABLED for this '
+            'Firebase project. Enable it in Firebase Console → Authentication → '
+            'Sign-in method, otherwise chat stays permission-denied. (${e.code})');
+      } else {
+        // ignore: avoid_print
+        print('[firebase-auth] shadow sign-in failed: ${e.code} ${e.message}');
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('[firebase-auth] shadow sign-in failed: $e');
     }
   }
 

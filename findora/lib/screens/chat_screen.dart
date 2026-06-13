@@ -23,7 +23,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chatController = Get.find<ChatController>();
-    _chatController.openConversation(widget.conversation);
+    // Defer to after the first frame: openConversation mutates reactive state
+    // (activeChat / messages / isLoadingMessages), which must not happen during
+    // the build phase, or GetX throws "setState() called during build".
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _chatController.openConversation(widget.conversation);
+    });
   }
 
   @override

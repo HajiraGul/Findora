@@ -1,3 +1,4 @@
+const path = require('path');
 const { initializeApp, applicationDefault, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -7,6 +8,16 @@ function isFirebaseConfigured() {
   return Boolean(
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.FIREBASE_PROJECT_ID
   );
+}
+
+// Resolve the service-account path so both absolute paths and paths relative to
+// the backend root (e.g. ./service-account.json) work. Without this, require()
+// would resolve a relative path against this file's folder (src/config) and a
+// bare filename would be treated as an npm module.
+function resolveServiceAccountPath() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (!raw) return null;
+  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
 }
 
 function getDb() {
@@ -20,7 +31,7 @@ function getDb() {
     throw error;
   }
 
-  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  const serviceAccountPath = resolveServiceAccountPath();
 
   const app = getApps().length
     ? getApps()[0]

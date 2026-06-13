@@ -4,6 +4,7 @@ const {
 } = require('../utils/chat.validators');
 const {
   ensureChatForClaim,
+  openChatForClaim,
   getMyChats,
   getChatById,
   listMessages,
@@ -65,6 +66,16 @@ async function send(req, res, next) {
   }
 }
 
+async function openForClaim(req, res, next) {
+  try {
+    const chat = await openChatForClaim(req.params.claimId, req.user);
+
+    return res.status(200).json({ message: 'Chat ready', chat });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function adminIndex(req, res, next) {
   try {
     const chats = await listAllChats();
@@ -112,6 +123,7 @@ module.exports = {
   show,
   messages,
   send,
+  openForClaim,
   adminIndex,
   adminSetStatus,
   adminUnlockForClaim,

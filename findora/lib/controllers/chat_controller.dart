@@ -59,9 +59,26 @@ class ChatController extends GetxController {
     );
   }
 
-  /// One-shot lookup of the conversation unlocked for an approved claim.
-  /// Returns null when the admin has not allowed chat for this claim yet.
+  /// Opens the conversation for an approved claim. Asks the backend to ensure
+  /// the chat exists (idempotent) — this self-heals claims that were approved
+  /// before chat was configured, instead of leaving the user stuck. Falls back
+  /// to a direct Firestore read if the backend call fails.
   Future<ChatConversation?> openChatByClaimId(String claimId) async {
+    if (_token.isNotEmpty) {
+      try {
+        final response =
+            await _api.openChatForClaim(token: _token, claimId: claimId);
+        if (response.isOk && response.body is Map) {
+          final chat = (response.body as Map)['chat'];
+          if (chat is Map) {
+            return ChatConversation.fromJson(Map<String, dynamic>.from(chat));
+          }
+        }
+      } catch (_) {
+        // Fall through to a direct Firestore read below.
+      }
+    }
+
     final data = await _firestore.getChat(claimId);
     if (data == null) return null;
     return ChatConversation.fromJson(data);
@@ -120,8 +137,22 @@ class ChatController extends GetxController {
       );
       // The new message arrives through the live messages stream.
       return null;
-    } catch (_) {
-      return 'Unable to send message. Please try again.';
+    } catch (e) {
+      // Surface the real cause so the failure is diagnosable instead of a
+      // generic "try again".
+      // ignore: avoid_print
+      print('[chat] sendMessage failed: $e');
+      final detail = e.toString().toLowerCase();
+      if (detail.contains('not configured') ||
+          detail.contains('no firebase') ||
+          detail.contains('no-app')) {
+        return 'Chat unavailable: Firebase isn\'t set up on this device.';
+      }
+      if (detail.contains('permission-denied') ||
+          detail.contains('permission_denied')) {
+        return 'Not allowed to send — you\'re not signed in to chat. Restart the app.';
+      }
+      return 'Unable to send: $e';
     } finally {
       isSending.value = false;
     }

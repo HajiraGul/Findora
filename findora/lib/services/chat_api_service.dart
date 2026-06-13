@@ -45,6 +45,15 @@ class ChatApiService extends GetConnect {
         headers: _auth(token));
   }
 
+  /// Ensures the chat for an approved claim exists (creating it if needed) and
+  /// returns it. Callable by the claimant or item poster.
+  Future<Response<dynamic>> openChatForClaim({
+    required String token,
+    required String claimId,
+  }) {
+    return post('/chats/claim/$claimId', {}, headers: _auth(token));
+  }
+
   // ── Admin ─────────────────────────────────────────────────────
 
   Future<Response<dynamic>> getAllChats({required String token}) {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../controllers/chat_controller.dart';
 import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
+import 'chat_screen.dart';
 
 class ClaimStatusScreen extends StatefulWidget {
   const ClaimStatusScreen({super.key});
@@ -41,6 +43,28 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
       return all.where((c) => c.status == ClaimStatus.approved).toList();
     }
     return all.where((c) => c.status == ClaimStatus.rejected).toList();
+  }
+
+  // Opens the chat unlocked for an approved claim. The chat doc id equals the
+  // claim id, so we can look it up directly.
+  Future<void> _openChat(ClaimModel claim) async {
+    final chatCtrl = Get.find<ChatController>();
+    final convo = await chatCtrl.openChatByClaimId(claim.id);
+    if (!mounted) return;
+
+    if (convo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chat isn\'t available yet. Please try again shortly.'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ChatScreen(conversation: convo)),
+    );
   }
 
   @override
@@ -294,10 +318,14 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      itemCount: claims.length,
-      itemBuilder: (_, i) => _buildClaimCard(claims[i]),
+    return RefreshIndicator(
+      onRefresh: () => _ctrl.fetchMyClaims(),
+      color: const Color(0xFF2563EB),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        itemCount: claims.length,
+        itemBuilder: (_, i) => _buildClaimCard(claims[i]),
+      ),
     );
   }
 
@@ -421,6 +449,10 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
                 ],
                 const SizedBox(height: 14),
                 _buildAnswerPreview(claim),
+                if (claim.status == ClaimStatus.approved) ...[
+                  const SizedBox(height: 14),
+                  _buildOpenChatButton(claim),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -555,6 +587,29 @@ class _ClaimStatusScreenState extends State<ClaimStatusScreen>
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildOpenChatButton(ClaimModel claim) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _openChat(claim),
+        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+        label: const Text(
+          'Open chat',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF16A34A),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 
