@@ -122,10 +122,21 @@ class _ManagePostsScreenState extends State<ManagePostsScreen> {
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                radius: 28,
-                backgroundColor: Color(0xffDCEFFF),
-                child: Icon(Icons.inventory_2_rounded, color: Color(0xff0A5EB0)),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _thumbPlaceholder(),
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null ? child : _thumbPlaceholder(),
+                        )
+                      : _thumbPlaceholder(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -158,6 +169,18 @@ class _ManagePostsScreenState extends State<ManagePostsScreen> {
               ),
             ],
           ),
+          if (item.description.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                item.description,
+                style: const TextStyle(color: Colors.black87, fontSize: 14, height: 1.4),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -198,6 +221,12 @@ class _ManagePostsScreenState extends State<ManagePostsScreen> {
       ),
     );
   }
+
+  Widget _thumbPlaceholder() => Container(
+        color: const Color(0xffDCEFFF),
+        alignment: Alignment.center,
+        child: const Icon(Icons.inventory_2_rounded, color: Color(0xff0A5EB0)),
+      );
 
   Future<void> _confirmDelete(BuildContext context, ItemModel item) async {
     final confirm = await showDialog<bool>(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/admin_controller.dart';
+import '../controllers/auth_controller.dart';
+import '../routes/app_routes.dart';
 import 'manage_claims_screen.dart';
 import 'manage_communication_screen.dart';
 import 'manage_posts_screen.dart';
@@ -16,6 +18,7 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late final AdminController _ctrl;
+  final AuthController _authController = Get.find<AuthController>();
 
   @override
   void initState() {
@@ -32,14 +35,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: const Text(
           'Admin Dashboard',
           style: TextStyle(color: Color(0xff17324D), fontWeight: FontWeight.w700),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout_rounded, color: Color(0xff17324D)),
+            onPressed: _logoutDialog,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
@@ -125,6 +132,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             }),
           ],
         ),
+      ),
+    );
+  }
+
+  void _logoutDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              await _authController.logout();
+              if (!mounted) return;
+              Navigator.pop(context);
+              Get.offAllNamed(AppRoutes.login);
+            },
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }
