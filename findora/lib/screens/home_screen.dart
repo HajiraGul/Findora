@@ -10,6 +10,7 @@ import 'items_near_me_screen.dart';
 import 'search_filter_screen.dart';
 import 'item_detail_screen.dart';
 import 'login_screen.dart';
+import 'messages_screen.dart';
 import 'post_item_screen.dart';
 import 'ble_tracking_screen.dart';
 import 'profile_screen.dart';
@@ -245,37 +246,42 @@ class _HomeScreenState extends State<HomeScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // ✅ Settings icon pinned to true right edge
-                  GestureDetector(
-                    onTap: () {
-                      if (widget.isGuest) {
-                        _showGuestBlock('access settings');
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
-                        );
-                      }
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.25),
-                          width: 1,
-                        ),
+                  // ✅ Messages + Settings icons pinned to true right edge
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _headerIconButton(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        onTap: () {
+                          if (widget.isGuest) {
+                            _showGuestBlock('view your messages');
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MessagesScreen(),
+                              ),
+                            );
+                          }
+                        },
                       ),
-                      child: const Icon(
-                        Icons.settings_outlined,
-                        color: Colors.white,
-                        size: 17,
+                      const SizedBox(width: 6),
+                      _headerIconButton(
+                        icon: Icons.settings_outlined,
+                        onTap: () {
+                          if (widget.isGuest) {
+                            _showGuestBlock('access settings');
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SettingsScreen(),
+                              ),
+                            );
+                          }
+                        },
                       ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Obx(() => _statBadge(
@@ -300,6 +306,28 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _headerIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.25),
+            width: 1,
+          ),
+        ),
+        child: Icon(icon, color: Colors.white, size: 17),
       ),
     );
   }

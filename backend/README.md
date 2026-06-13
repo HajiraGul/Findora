@@ -46,6 +46,13 @@ Make sure MongoDB is running and `MONGODB_URI` in `.env` points to your database
 - `DELETE /api/items/:id` deletes an owned item.
 - `POST /api/items/:id/resolve` marks an owned item resolved.
 - `POST /api/items/:id/images` adds image URLs to an owned item.
+- `GET /api/chats` lists the authenticated user's chat conversations.
+- `GET /api/chats/:chatId` returns one conversation (participants or admin).
+- `GET /api/chats/:chatId/messages` lists messages, `?after=<ms>` for polling.
+- `POST /api/chats/:chatId/messages` sends a message (403 if chat disabled).
+- `GET /api/admin/chats` lists all conversations (admin).
+- `PATCH /api/admin/chats/:chatId/status` enables/disables a conversation (admin).
+- `POST /api/admin/chats/claim/:claimId` unlocks chat for an approved claim (admin).
 
 ### Register
 
@@ -107,6 +114,14 @@ SMTP_SECURE=false
 SMTP_USER=your_gmail@gmail.com
 SMTP_PASS=your_gmail_app_password
 SMTP_FROM=Findora <your_gmail@gmail.com>
+```
+
+To upload item images through Cloudinary, set these environment variables:
+
+```env
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 ```
 
 ### Login
@@ -201,7 +216,7 @@ GET /api/users/me/profile-summary
   },
   "handoverMethod": "Police Station",
   "contactInfo": "+92 300 1234567",
-  "images": ["https://example.com/wallet.jpg"]
+  "images": ["data:image/jpeg;base64,..."]
 }
 ```
 
@@ -216,9 +231,13 @@ GET /api/items/nearby?lat=33.7215&lng=73.0433&radiusKm=1&sort=distance
 
 ```json
 {
-  "imageUrls": ["https://example.com/photo-1.jpg"]
+  "imageUrls": ["data:image/jpeg;base64,..."]
 }
 ```
+
+The API uploads selected images to Cloudinary and stores the resulting
+Cloudinary `secure_url` values in `images`. It also stores Cloudinary
+`public_id` values in `imagePublicIds` so images can be managed later.
 
 ## Included Packages
 

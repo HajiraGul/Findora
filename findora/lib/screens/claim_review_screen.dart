@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../controllers/chat_controller.dart';
 import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
 
@@ -16,6 +17,7 @@ class ClaimReviewScreen extends StatefulWidget {
 class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
   bool _isApproving = false;
   bool _isRejecting = false;
+  bool _isUnlockingChat = false;
 
   Future<void> _approve() async {
     final note = await _showNoteDialog('Approve Claim', 'Approval message (optional)');
@@ -31,7 +33,11 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
 
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Claim Approved')),
+        const SnackBar(
+          content: Text(
+            'Claim approved — chat unlocked between claimant and poster',
+          ),
+        ),
       );
       Navigator.pop(context, true);
     } else {
@@ -39,6 +45,18 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
         const SnackBar(content: Text('Failed to approve claim')),
       );
     }
+  }
+
+  Future<void> _unlockChat() async {
+    setState(() => _isUnlockingChat = true);
+    final error =
+        await Get.find<ChatController>().unlockChatForClaim(widget.claim.id);
+    if (!mounted) return;
+    setState(() => _isUnlockingChat = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Chat unlocked between users')),
+    );
   }
 
   Future<void> _reject() async {
@@ -291,7 +309,8 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
 
             const SizedBox(height: 14),
 
-            // Unlock Chat (placeholder — requires chat backend)
+            // Unlock (or re-enable) the chat for an already-approved claim.
+            // Approving a claim unlocks the chat automatically.
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -303,14 +322,17 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
                     borderRadius: BorderRadius.circular(18),
                   ),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Chat Unlocked between users'),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.chat),
+                onPressed: _isUnlockingChat ? null : _unlockChat,
+                icon: _isUnlockingChat
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.chat),
                 label: const Text('Unlock Chat'),
               ),
             ),

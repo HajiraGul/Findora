@@ -1,19 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../controllers/chat_controller.dart';
+import '../models/chat_model.dart';
 import 'chat_screen.dart';
 
-class MessagesScreen extends StatelessWidget {
+class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
+
+  @override
+  State<MessagesScreen> createState() => _MessagesScreenState();
+}
+
+class _MessagesScreenState extends State<MessagesScreen> {
+  late final ChatController _chatController;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _chatController = Get.find<ChatController>();
+    _chatController.fetchMyChats();
+  }
+
+  List<ChatConversation> get _filtered {
+    final query = _searchQuery.toLowerCase();
+    if (query.isEmpty) return _chatController.conversations.toList();
+    return _chatController.conversations.where((c) {
+      final other =
+          c.otherPartyName(_chatController.currentUserId).toLowerCase();
+      return other.contains(query) ||
+          c.itemTitle.toLowerCase().contains(query);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF5FAFF),
-
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
@@ -23,7 +51,6 @@ class MessagesScreen extends StatelessWidget {
             Navigator.pop(context);
           },
         ),
-
         title: const Text(
           "Messages",
           style: TextStyle(
@@ -33,7 +60,6 @@ class MessagesScreen extends StatelessWidget {
           ),
         ),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -51,8 +77,9 @@ class MessagesScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const TextField(
-                decoration: InputDecoration(
+              child: TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
+                decoration: const InputDecoration(
                   icon: Icon(Icons.search_rounded),
                   hintText: "Search conversations...",
                   border: InputBorder.none,
@@ -61,42 +88,40 @@ class MessagesScreen extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             Expanded(
-              child: ListView(
-                children: [
-                  _chatTile(
-                    context,
-                    name: "Ali Raza",
-                    message: "I think the wallet belongs to you.",
-                    time: "2m",
-                    online: true,
-                    unread: 2,
+              child: Obx(() {
+                if (_chatController.isLoadingChats.value &&
+                    _chatController.conversations.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final chats = _filtered;
+                if (chats.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        "No conversations yet.\n\nChat unlocks when the admin approves a claim on an item.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.black54,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _chatController.fetchMyChats,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: chats.length,
+                    itemBuilder: (context, index) =>
+                        _chatTile(context, chats[index]),
                   ),
-                  _chatTile(
-                    context,
-                    name: "Sara Khan",
-                    message: "Can you verify the lost phone details?",
-                    time: "12m",
-                    online: false,
-                    unread: 1,
-                  ),
-                  _chatTile(
-                    context,
-                    name: "Lost & Found Desk",
-                    message: "Your claim request is under review.",
-                    time: "1h",
-                    online: true,
-                    unread: 0,
-                  ),
-                  _chatTile(
-                    context,
-                    name: "Hassan Ahmed",
-                    message: "Thanks for confirming ownership.",
-                    time: "Yesterday",
-                    online: false,
-                    unread: 0,
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
           ],
         ),
@@ -104,21 +129,19 @@ class MessagesScreen extends StatelessWidget {
     );
   }
 
-  Widget _chatTile(
-    BuildContext context, {
-    required String name,
-    required String message,
-    required String time,
-    required bool online,
-    required int unread,
-  }) {
+  Widget _chatTile(BuildContext context, ChatConversation chat) {
+    final name = chat.otherPartyName(_chatController.currentUserId);
+    final lastMessage = chat.lastMessageText ??
+        'Chat unlocked for "${chat.itemTitle}" — say hello!';
+
     return InkWell(
       borderRadius: BorderRadius.circular(24),
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ChatScreen(userName: name)),
+          MaterialPageRoute(builder: (_) => ChatScreen(conversation: chat)),
         );
+        _chatController.fetchMyChats();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -138,27 +161,10 @@ class MessagesScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Color(0xffDCEFFF),
-                  child: Icon(Icons.person, size: 28, color: Color(0xff0A5EB0)),
-                ),
-                Positioned(
-                  right: 2,
-                  bottom: 2,
-                  child: Container(
-                    height: 13,
-                    width: 13,
-                    decoration: BoxDecoration(
-                      color: online ? Colors.green : Colors.grey,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-              ],
+            const CircleAvatar(
+              radius: 28,
+              backgroundColor: Color(0xffDCEFFF),
+              child: Icon(Icons.person, size: 28, color: Color(0xff0A5EB0)),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -175,7 +181,7 @@ class MessagesScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    message,
+                    lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.black54, fontSize: 14),
@@ -184,25 +190,29 @@ class MessagesScreen extends StatelessWidget {
               ),
             ),
             Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  time,
+                  chat.timeAgo,
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                if (unread > 0)
+                if (!chat.enabled)
                   Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: const BoxDecoration(
-                      color: Color(0xff0A84FF),
-                      shape: BoxShape.circle,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    child: Text(
-                      unread.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      "Disabled",
+                      style: TextStyle(
+                        color: Colors.red,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),

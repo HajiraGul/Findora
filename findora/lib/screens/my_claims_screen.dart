@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../controllers/chat_controller.dart';
 import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
+import 'chat_screen.dart';
 import 'claim_details_screen.dart';
 
 class MyClaimsScreen extends StatefulWidget {
@@ -129,6 +131,9 @@ class _MyClaimsScreenState extends State<MyClaimsScreen> {
                                     claim.status.name.substring(1),
                                 statusColor: _statusColor(claim.status),
                                 progress: _statusProgress(claim.status),
+                                onChat: claim.status == ClaimStatus.approved
+                                    ? () => _openChat(claim)
+                                    : null,
                               ),
                             );
                           },
@@ -139,6 +144,28 @@ class _MyClaimsScreenState extends State<MyClaimsScreen> {
       ),
     );
   });
+  }
+
+  Future<void> _openChat(ClaimModel claim) async {
+    final chat =
+        await Get.find<ChatController>().openChatByClaimId(claim.id);
+    if (!mounted) return;
+
+    if (chat == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chat is not available yet. Please wait for the admin to unlock it.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ChatScreen(conversation: chat)),
+    );
   }
 
   // ✅ Filter Chip Widget
@@ -181,6 +208,7 @@ class ClaimCard extends StatelessWidget {
   final String status;
   final Color statusColor;
   final double progress;
+  final VoidCallback? onChat;
 
   const ClaimCard({
     super.key,
@@ -190,6 +218,7 @@ class ClaimCard extends StatelessWidget {
     required this.status,
     required this.statusColor,
     required this.progress,
+    this.onChat,
   });
 
   @override
@@ -343,6 +372,35 @@ class ClaimCard extends StatelessWidget {
               ),
             ),
           ),
+
+          if (onChat != null) ...[
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xff0A84FF),
+                  side: const BorderSide(color: Color(0xff0A84FF)),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+
+                onPressed: onChat,
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+
+                label: const Text(
+                  "Chat",
+
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -60,72 +60,105 @@ class ItemDetailScreen extends StatelessWidget {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFF1D4ED8),
-                      Color(0xFF2563EB),
-                      Color(0xFF3B82F6),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                decoration: item.imageUrl == null || item.imageUrl!.isEmpty
+                    ? const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0xFF1D4ED8),
+                            Color(0xFF2563EB),
+                            Color(0xFF3B82F6),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      )
+                    : null,
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      const SizedBox(height: 60),
+                      if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                        Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
+                        ),
                       Container(
-                        width: 100,
-                        height: 100,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 1,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withOpacity(
+                                item.imageUrl != null &&
+                                        item.imageUrl!.isNotEmpty
+                                    ? 0.45
+                                    : 0,
+                              ),
+                              Colors.black.withOpacity(0.05),
+                            ],
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
                           ),
                         ),
-                        child: Icon(
-                          _categoryIcon(item.category),
-                          size: 50,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusBg,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 60),
+                          if (item.imageUrl == null || item.imageUrl!.isEmpty)
                             Container(
-                              width: 7,
-                              height: 7,
+                              width: 100,
+                              height: 100,
                               decoration: BoxDecoration(
-                                color: statusColor,
-                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(28),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                _categoryIcon(item.category),
+                                size: 50,
+                                color: Colors.white.withOpacity(0.9),
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isLost ? 'LOST ITEM' : 'FOUND ITEM',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: statusColor,
-                                letterSpacing: 0.5,
-                              ),
+                          if (item.imageUrl == null || item.imageUrl!.isEmpty)
+                            const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
                             ),
-                          ],
-                        ),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isLost ? 'LOST ITEM' : 'FOUND ITEM',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: statusColor,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -133,7 +166,6 @@ class ItemDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),

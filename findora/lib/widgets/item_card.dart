@@ -45,13 +45,28 @@ class ItemCard extends StatelessWidget {
                 color: const Color(0xFFF1F5F9),
                 child: Stack(
                   children: [
-                    Center(
-                      child: Icon(
-                        _categoryIcon(item.category),
-                        size: 52,
-                        color: const Color(0xFFCBD5E1),
+                    if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                      Positioned.fill(
+                        child: Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Icon(
+                              _categoryIcon(item.category),
+                              size: 52,
+                              color: const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Center(
+                        child: Icon(
+                          _categoryIcon(item.category),
+                          size: 52,
+                          color: const Color(0xFFCBD5E1),
+                        ),
                       ),
-                    ),
                     // Status badge
                     Positioned(
                       top: 12,

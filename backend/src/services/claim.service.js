@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
+const { ensureChatForClaim } = require('./chat.service');
 
 async function submitClaim(userId, payload) {
   validateObjectId(payload.itemId, 'item');
@@ -127,6 +128,16 @@ async function reviewClaim(claimId, adminUser, newStatus, adminNote) {
   claim.reviewedBy = adminUser._id;
   claim.reviewedAt = new Date();
   await claim.save();
+
+  if (newStatus === 'approved') {
+    // Approving a claim is the admin allowing the claimant and the item
+    // poster to talk; a failed Firestore write must not undo the approval.
+    try {
+      await ensureChatForClaim(claim._id.toString());
+    } catch (chatError) {
+      console.error(`Chat unlock skipped for claim ${claim._id}: ${chatError.message}`);
+    }
+  }
 
   return claim.toSafeObject();
 }

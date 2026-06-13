@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────────
+    // SECURITY CEILING (shadow-auth scheme)
+    //
+    // The app signs every user into Firebase with one shared password, so
+    // `request.auth != null` only proves "this device signed in with the app's
+    // shared credential" — NOT which Findora user it is. These rules therefore
+    // cannot truly limit a chat to its two participants; the realistic ceiling
+    // is "any authenticated device".
+    //
+    // To get real per-user enforcement, mint Firebase custom tokens on the
+    // backend (uid == Mongo _id), then replace `signedIn()` below with checks
+    // like `request.auth.uid in resource.data.participantIds`.
+    // ─────────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function chatEnabled(chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId)).data.enabled == true;
+    }
+
+    match /chats/{chatId} {
+      // Chat documents are created/updated only by the backend Admin SDK and
+      // the Cloud Function (both bypass these rules). Clients read, never write.
+      allow read: if signedIn();
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn();
+
+        // Clients may only append messages, only while the chat is enabled, and
+        // only with the expected shape. The Cloud Function (Admin SDK) updates
+        // lastMessage on the parent doc, so clients never touch it.
+        allow create: if signedIn()
+          && chatEnabled(chatId)
+          && request.resource.data.keys().hasOnly(
+               ['senderId', 'senderName', 'text', 'sentAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // FCM tokens: clients write their own; only the Cloud Function (Admin SDK)
+    // reads them, so no client read access is granted.
+    match /device_tokens/{userId} {
+      allow read: if false;
+      allow write: if signedIn();
+    }
+  }
+}

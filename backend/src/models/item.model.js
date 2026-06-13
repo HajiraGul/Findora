@@ -61,6 +61,16 @@ const itemSchema = new mongoose.Schema(
         message: 'Maximum 4 images are allowed',
       },
     },
+    imagePublicIds: {
+      type: [String],
+      default: [],
+      validate: {
+        validator(imagePublicIds) {
+          return imagePublicIds.length <= 4;
+        },
+        message: 'Maximum 4 image public IDs are allowed',
+      },
+    },
     reward: {
       enabled: {
         type: Boolean,
@@ -148,6 +158,7 @@ itemSchema.methods.toSafeObject = function toSafeObject(distanceKm) {
     timeAgo: getTimeAgo(this.createdAt),
     imageUrl: this.images[0] || null,
     images: this.images,
+    imagePublicIds: this.imagePublicIds,
     color: this.color || null,
     date: this.createdAt.toISOString().slice(0, 10),
     isResolved: this.isResolved,

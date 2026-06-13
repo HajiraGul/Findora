@@ -5,14 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/auth_user.dart';
 import '../services/auth_api_service.dart';
+import '../services/firebase_auth_service.dart';
+import '../services/push_service.dart';
 
 class AuthController extends GetxController {
   static const _tokenKey = 'auth_token';
   static const _userKey = 'auth_user';
 
   final AuthApiService _authApiService;
+  final FirebaseAuthService _firebaseAuth;
+  final PushService _push;
 
-  AuthController(this._authApiService);
+  AuthController(this._authApiService, this._firebaseAuth, this._push);
 
   final isLoading = false.obs;
   final resetLoading = false.obs;
@@ -43,6 +47,7 @@ class AuthController extends GetxController {
     user.value = AuthUser.fromJson(
       jsonDecode(storedUser) as Map<String, dynamic>,
     );
+    _syncFirebaseSession(user.value!);
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -332,10 +337,16 @@ class AuthController extends GetxController {
 
   Future<void> _clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+    final previousUserId = user.value?.id;
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
     token.value = null;
     user.value = null;
+
+    if (previousUserId != null && previousUserId.isNotEmpty) {
+      _push.remove(previousUserId).ignore();
+    }
+    _firebaseAuth.signOut().ignore();
   }
 
   Future<void> _submitAuthRequest(
@@ -379,6 +390,17 @@ class AuthController extends GetxController {
 
     await prefs.setString(_userKey, jsonEncode(authUser.toJson()));
     user.value = authUser;
+
+    _syncFirebaseSession(authUser);
+  }
+
+  void _syncFirebaseSession(AuthUser authUser) {
+    // Fire-and-forget: get a Firebase identity (shadow account), then register
+    // this device for push. Failures never block the real backend session.
+    _firebaseAuth
+        .ensureSignedIn(authUser.email)
+        .then((_) => _push.register(authUser.id))
+        .ignore();
   }
 
   Future<void> _saveUserFromResponse(dynamic body) async {

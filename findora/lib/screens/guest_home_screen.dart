@@ -16,6 +16,7 @@ class LostItem {
   final String timeAgo;
   final String description;
   final String status;
+  final String? imageUrl;
   final IconData icon;
   final Color categoryColor;
   final bool isResolved;
@@ -30,6 +31,7 @@ class LostItem {
     required this.timeAgo,
     required this.description,
     this.status = 'lost',
+    this.imageUrl,
     required this.icon,
     required this.categoryColor,
     this.isResolved = false,
@@ -47,6 +49,7 @@ class LostItem {
       timeAgo: json['timeAgo']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       status: json['status']?.toString() == 'found' ? 'found' : 'lost',
+      imageUrl: json['imageUrl']?.toString(),
       icon: _iconForCategory(category),
       categoryColor: _colorForCategory(category),
       isResolved: json['isResolved'] as bool? ?? false,
@@ -860,7 +863,20 @@ class _ItemCard extends StatelessWidget {
                   color: item.categoryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(item.icon, color: item.categoryColor, size: 26),
+                child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            item.icon,
+                            color: item.categoryColor,
+                            size: 26,
+                          ),
+                        ),
+                      )
+                    : Icon(item.icon, color: item.categoryColor, size: 26),
               ),
               const SizedBox(width: 12),
               // Content

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const Item = require('../models/item.model');
+const { uploadItemImages } = require('./image.service');
 
 function buildItemQuery(filters = {}) {
   const query = {};
@@ -94,8 +95,15 @@ async function getItemById(itemId) {
 }
 
 async function createItem(userId, payload) {
+  const data = { ...payload };
+  if (Array.isArray(data.images) && data.images.length > 0) {
+    const uploaded = await uploadItemImages(data.images);
+    data.images = uploaded.urls;
+    data.imagePublicIds = uploaded.publicIds;
+  }
+
   const item = await Item.create({
-    ...payload,
+    ...data,
     postedBy: userId,
   });
   await item.populate('postedBy', 'fullName');
@@ -105,7 +113,14 @@ async function createItem(userId, payload) {
 
 async function updateItem(itemId, user, payload) {
   const item = await findOwnedItem(itemId, user);
-  Object.assign(item, payload);
+  const data = { ...payload };
+  if (Array.isArray(data.images)) {
+    const uploaded = await uploadItemImages(data.images);
+    data.images = uploaded.urls;
+    data.imagePublicIds = uploaded.publicIds;
+  }
+
+  Object.assign(item, data);
   await item.save();
   await item.populate('postedBy', 'fullName');
 
@@ -129,8 +144,13 @@ async function resolveItem(itemId, user) {
 
 async function addItemImages(itemId, user, images) {
   const item = await findOwnedItem(itemId, user);
-  const merged = [...new Set([...item.images, ...images])].slice(0, 4);
+  const uploaded = await uploadItemImages(images);
+  const merged = [...new Set([...item.images, ...uploaded.urls])].slice(0, 4);
+  const mergedPublicIds = [
+    ...new Set([...item.imagePublicIds, ...uploaded.publicIds]),
+  ].slice(0, 4);
   item.images = merged;
+  item.imagePublicIds = mergedPublicIds;
   await item.save();
   await item.populate('postedBy', 'fullName');
 

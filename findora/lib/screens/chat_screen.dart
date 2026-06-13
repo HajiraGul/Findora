@@ -1,11 +1,13 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:get/get.dart';
+
+import '../controllers/chat_controller.dart';
+import '../models/chat_model.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String userName;
+  final ChatConversation conversation;
 
-  const ChatScreen({super.key, required this.userName});
+  const ChatScreen({super.key, required this.conversation});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -13,107 +15,51 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController messageController = TextEditingController();
-  final ImagePicker picker = ImagePicker();
+  final ScrollController scrollController = ScrollController();
+  late final ChatController _chatController;
+  int _renderedMessageCount = 0;
 
-  final List<Map<String, dynamic>> messages = [
-    {
-      "text": "Hi, I found an item that may belong to you.",
-      "isMe": false,
-      "time": "10:24 AM",
-    },
-    {
-      "text": "Really? Can you share details please?",
-      "isMe": true,
-      "time": "10:25 AM",
-    },
-    {
-      "text": "It is a black wallet with a university ID card.",
-      "isMe": false,
-      "time": "10:26 AM",
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _chatController = Get.find<ChatController>();
+    _chatController.openConversation(widget.conversation);
+  }
 
-  void sendMessage() {
-    if (messageController.text.trim().isEmpty) return;
+  @override
+  void dispose() {
+    _chatController.closeConversation();
+    messageController.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
 
-    setState(() {
-      messages.add({
-        "text": messageController.text.trim(),
-        "isMe": true,
-        "time": "Now",
-      });
-    });
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty) return;
 
     messageController.clear();
-  }
+    final error = await _chatController.sendMessage(text);
 
-  Future<void> pickGalleryImage() async {
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null && mounted) {
+    if (error != null && mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Image selected: ${image.name}")));
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
-  Future<void> pickCameraImage() async {
-    final XFile? image = await picker.pickImage(source: ImageSource.camera);
-
-    if (image != null && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Captured: ${image.name}")));
-    }
-  }
-
-  Future<void> pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-
-    if (result != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("File selected: ${result.files.single.name}")),
-      );
-    }
-  }
-
-  void showAttachmentOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(25),
-          child: Wrap(
-            children: [
-              _optionTile(Icons.photo, "Gallery", pickGalleryImage),
-              _optionTile(Icons.camera_alt, "Camera", pickCameraImage),
-              _optionTile(Icons.insert_drive_file, "File", pickFile),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _optionTile(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xffEAF5FF),
-        child: Icon(icon, color: const Color(0xff0A5EB0)),
-      ),
-      title: Text(title),
-      onTap: () {
-        Navigator.pop(context);
-        onTap();
-      },
-    );
+  void _scrollToBottomAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!scrollController.hasClients) return;
+      scrollController.jumpTo(scrollController.position.maxScrollExtent);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final otherName =
+        widget.conversation.otherPartyName(_chatController.currentUserId);
+
     return Scaffold(
       backgroundColor: const Color(0xffF5FAFF),
       appBar: AppBar(
@@ -128,49 +74,36 @@ class _ChatScreenState extends State<ChatScreen> {
         titleSpacing: 0,
         title: Row(
           children: [
-            Stack(
-              children: [
-                const CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Color(0xffDCEFFF),
-                  child: Icon(Icons.person, color: Color(0xff0A5EB0)),
-                ),
-                Positioned(
-                  right: 1,
-                  bottom: 1,
-                  child: Container(
-                    height: 12,
-                    width: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ),
-              ],
+            const CircleAvatar(
+              radius: 22,
+              backgroundColor: Color(0xffDCEFFF),
+              child: Icon(Icons.person, color: Color(0xff0A5EB0)),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.userName,
-                  style: const TextStyle(
-                    color: Color(0xff17324D),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    otherName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xff17324D),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const Text(
-                  "Secure Verified Chat",
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    widget.conversation.itemTitle,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -178,20 +111,74 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(18),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final msg = messages[index];
-                return _messageBubble(
-                  text: msg["text"],
-                  isMe: msg["isMe"],
-                  time: msg["time"],
+            child: Obx(() {
+              if (_chatController.isLoadingMessages.value &&
+                  _chatController.messages.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final msgs = _chatController.messages;
+              if (msgs.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'Say hello — this chat was approved by the admin.',
+                    style: TextStyle(color: Colors.black54),
+                  ),
                 );
-              },
+              }
+
+              if (msgs.length != _renderedMessageCount) {
+                _renderedMessageCount = msgs.length;
+                _scrollToBottomAfterBuild();
+              }
+
+              return ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.all(18),
+                itemCount: msgs.length,
+                itemBuilder: (context, index) {
+                  final msg = msgs[index];
+                  return _messageBubble(
+                    text: msg.text,
+                    isMe: msg.senderId == _chatController.currentUserId,
+                    time: msg.formattedTime,
+                  );
+                },
+              );
+            }),
+          ),
+          Obx(() {
+            final chat = _chatController.activeChat.value;
+            final disabled = chat != null && !chat.enabled;
+            return disabled ? _disabledBanner() : _messageInput();
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _disabledBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 26),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock_outline_rounded, color: Colors.red, size: 18),
+          SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'This chat has been disabled by the admin.',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          _messageInput(),
         ],
       ),
     );
@@ -255,22 +242,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: showAttachmentOptions,
-            child: Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xffEAF5FF),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.attach_file_rounded,
-                color: Color(0xff0A5EB0),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -280,6 +251,8 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: TextField(
                 controller: messageController,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => sendMessage(),
                 decoration: const InputDecoration(
                   hintText: "Type a message...",
                   border: InputBorder.none,
@@ -288,20 +261,31 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          GestureDetector(
-            onTap: sendMessage,
-            child: Container(
-              height: 52,
-              width: 52,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xff0A84FF), Color(0xff0066D6)],
+          Obx(() {
+            final sending = _chatController.isSending.value;
+            return GestureDetector(
+              onTap: sending ? null : sendMessage,
+              child: Container(
+                height: 52,
+                width: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xff0A84FF), Color(0xff0066D6)],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                borderRadius: BorderRadius.circular(18),
+                child: sending
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded, color: Colors.white),
               ),
-              child: const Icon(Icons.send_rounded, color: Colors.white),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );

@@ -222,11 +222,23 @@ class _GuestItemDetailScreenState extends State<GuestItemDetailScreen>
               color: widget.item.categoryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(24),
             ),
-            child: Icon(
-              widget.item.icon,
-              color: widget.item.categoryColor,
-              size: 46,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child:
+                widget.item.imageUrl != null && widget.item.imageUrl!.isNotEmpty
+                ? Image.network(
+                    widget.item.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      widget.item.icon,
+                      color: widget.item.categoryColor,
+                      size: 46,
+                    ),
+                  )
+                : Icon(
+                    widget.item.icon,
+                    color: widget.item.categoryColor,
+                    size: 46,
+                  ),
           ),
           const SizedBox(height: 16),
           // Title
