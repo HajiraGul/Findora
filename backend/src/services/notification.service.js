@@ -218,6 +218,48 @@ async function notifyOwnerOfMatch(user, sourceItemId, matchItemId) {
   return { notified: true };
 }
 
+// Tells the claimant about the admin's decision on their claim. Approval points
+// them at the now-unlocked chat; rejection surfaces the admin's note so they
+// know why. Fire-and-forget — a notification failure must never roll back the
+// review itself. `claim` is expected to have `item` (title) populated.
+async function notifyClaimReviewed(claim) {
+  try {
+    const approved = claim.status === 'approved';
+    const itemTitle = claim.item && claim.item.title ? claim.item.title : 'your item';
+    const claimantId =
+      claim.claimant && claim.claimant._id ? claim.claimant._id : claim.claimant;
+
+    let body;
+    if (approved) {
+      body = `Your claim for "${itemTitle}" was approved. You can now chat with the person who posted it.`;
+    } else {
+      body = `Your claim for "${itemTitle}" was not approved.`;
+      if (claim.adminNote) {
+        const note =
+          claim.adminNote.length > 200 ? `${claim.adminNote.slice(0, 200)}…` : claim.adminNote;
+        body += ` Reason: ${note}`;
+      }
+    }
+
+    await createNotification({
+      user: claimantId,
+      type: 'claim',
+      title: approved ? 'Claim approved' : 'Claim not approved',
+      body,
+      data: {
+        kind: 'claim',
+        claimId: claim._id.toString(),
+        itemId: claim.item && claim.item._id ? claim.item._id.toString() : undefined,
+        status: claim.status,
+      },
+    });
+  } catch (error) {
+    console.error(
+      `Claim review notification for ${claim && claim._id} failed: ${error.message}`
+    );
+  }
+}
+
 function ownerIdOf(item) {
   return item.postedBy && item.postedBy._id ? item.postedBy._id : item.postedBy;
 }
@@ -230,4 +272,5 @@ module.exports = {
   markAllAsRead,
   notifyMatchesForNewItem,
   notifyOwnerOfMatch,
+  notifyClaimReviewed,
 };

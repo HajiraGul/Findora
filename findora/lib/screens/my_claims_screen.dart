@@ -8,7 +8,10 @@ import 'chat_screen.dart';
 import 'claim_details_screen.dart';
 
 class MyClaimsScreen extends StatefulWidget {
-  const MyClaimsScreen({super.key});
+  /// When embedded (e.g. inside the "My Items" tabbed screen) the screen renders
+  /// just its filter chips + list body, without its own Scaffold/AppBar.
+  final bool embedded;
+  const MyClaimsScreen({super.key, this.embedded = false});
 
   @override
   State<MyClaimsScreen> createState() => _MyClaimsScreenState();
@@ -49,13 +52,7 @@ class _MyClaimsScreenState extends State<MyClaimsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final all = _ctrl.claims;
-      final filteredClaims = selectedFilter == 'All'
-          ? all.toList()
-          : all
-              .where((c) => c.status.name.capitalize == selectedFilter)
-              .toList();
+    if (widget.embedded) return _buildBody();
 
     return Scaffold(
       backgroundColor: const Color(0xffF5FAFF),
@@ -83,67 +80,77 @@ class _MyClaimsScreenState extends State<MyClaimsScreen> {
         iconTheme: const IconThemeData(color: Color(0xff17324D)),
       ),
 
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 🔹 Filter Chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-
-              child: Row(
-                children: [
-                  _filterChip("All"),
-                  _filterChip("Pending"),
-                  _filterChip("Approved"),
-                  _filterChip("Rejected"),
-                ],
-              ),
-            ),
-
-            // 🔹 Claims List
-            Expanded(
-              child: _ctrl.isLoading.value && filteredClaims.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : filteredClaims.isEmpty
-                      ? const Center(
-                          child: Text(
-                            "No claims found",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(18),
-                          itemCount: filteredClaims.length,
-                          itemBuilder: (context, index) {
-                            final claim = filteredClaims[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 18),
-                              child: ClaimCard(
-                                title: claim.itemTitle,
-                                claimId: '#CLM-${claim.id.substring(0, 6).toUpperCase()}',
-                                date: claim.formattedDate,
-                                status: claim.status.name[0].toUpperCase() +
-                                    claim.status.name.substring(1),
-                                statusColor: _statusColor(claim.status),
-                                progress: _statusProgress(claim.status),
-                                onChat: claim.status == ClaimStatus.approved
-                                    ? () => _openChat(claim)
-                                    : null,
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
-        ),
-      ),
+      body: SafeArea(child: _buildBody()),
     );
-  });
+  }
+
+  Widget _buildBody() {
+    return Obx(() {
+      final all = _ctrl.claims;
+      final filteredClaims = selectedFilter == 'All'
+          ? all.toList()
+          : all
+              .where((c) => c.status.name.capitalize == selectedFilter)
+              .toList();
+
+      return Column(
+        children: [
+          // 🔹 Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+
+            child: Row(
+              children: [
+                _filterChip("All"),
+                _filterChip("Pending"),
+                _filterChip("Approved"),
+                _filterChip("Rejected"),
+              ],
+            ),
+          ),
+
+          // 🔹 Claims List
+          Expanded(
+            child: _ctrl.isLoading.value && filteredClaims.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : filteredClaims.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No claims found",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(18),
+                        itemCount: filteredClaims.length,
+                        itemBuilder: (context, index) {
+                          final claim = filteredClaims[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: ClaimCard(
+                              title: claim.itemTitle,
+                              claimId: '#CLM-${claim.id.substring(0, 6).toUpperCase()}',
+                              date: claim.formattedDate,
+                              status: claim.status.name[0].toUpperCase() +
+                                  claim.status.name.substring(1),
+                              statusColor: _statusColor(claim.status),
+                              progress: _statusProgress(claim.status),
+                              onChat: claim.status == ClaimStatus.approved
+                                  ? () => _openChat(claim)
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      );
+    });
   }
 
   Future<void> _openChat(ClaimModel claim) async {

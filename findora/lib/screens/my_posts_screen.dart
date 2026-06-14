@@ -8,7 +8,10 @@ import 'item_detail_screen.dart';
 import 'match_suggestions_screen.dart';
 
 class MyPostsScreen extends StatefulWidget {
-  const MyPostsScreen({super.key});
+  /// When embedded (e.g. inside the "My Items" tabbed screen) the screen renders
+  /// just its list body, without its own Scaffold/AppBar.
+  final bool embedded;
+  const MyPostsScreen({super.key, this.embedded = false});
 
   @override
   State<MyPostsScreen> createState() => _MyPostsScreenState();
@@ -80,6 +83,8 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _buildBody();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
@@ -95,61 +100,63 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
           ),
           iconTheme: const IconThemeData(color: Color(0xff17324D)),
         ),
-        body: SafeArea(
-          child: Obx(() {
-            if (_ctrl.myItemsLoading.value && _ctrl.myItems.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (_ctrl.myItems.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade300),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No posts yet',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade400),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Your lost & found posts will appear here',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: _ctrl.fetchMyItems,
-              child: ListView.separated(
-                padding: const EdgeInsets.all(18),
-                itemCount: _ctrl.myItems.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 18),
-                itemBuilder: (ctx, i) => _PostCard(
-                  item: _ctrl.myItems[i],
-                  icon: _iconForCategory(_ctrl.myItems[i].category),
-                  onTap: () => Navigator.push(
-                    ctx,
-                    MaterialPageRoute(
-                      builder: (_) => ItemDetailScreen(item: _ctrl.myItems[i]),
-                    ),
-                  ),
-                  onViewMatches: () => Navigator.push(
-                    ctx,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          MatchSuggestionsScreen(itemId: _ctrl.myItems[i].id),
-                    ),
-                  ),
-                  onDelete: () => _confirmDelete(ctx, _ctrl.myItems[i]),
-                ),
-              ),
-            );
-          }),
-        ),
+        body: SafeArea(child: _buildBody()),
       ),
     );
+  }
+
+  Widget _buildBody() {
+    return Obx(() {
+      if (_ctrl.myItemsLoading.value && _ctrl.myItems.isEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (_ctrl.myItems.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'No posts yet',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your lost & found posts will appear here',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
+            ],
+          ),
+        );
+      }
+      return RefreshIndicator(
+        onRefresh: _ctrl.fetchMyItems,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(18),
+          itemCount: _ctrl.myItems.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 18),
+          itemBuilder: (ctx, i) => _PostCard(
+            item: _ctrl.myItems[i],
+            icon: _iconForCategory(_ctrl.myItems[i].category),
+            onTap: () => Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                builder: (_) => ItemDetailScreen(item: _ctrl.myItems[i]),
+              ),
+            ),
+            onViewMatches: () => Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                builder: (_) =>
+                    MatchSuggestionsScreen(itemId: _ctrl.myItems[i].id),
+              ),
+            ),
+            onDelete: () => _confirmDelete(ctx, _ctrl.myItems[i]),
+          ),
+        ),
+      );
+    });
   }
 }
 

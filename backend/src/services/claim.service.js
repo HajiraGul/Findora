@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
 const { ensureChatForClaim } = require('./chat.service');
+const { notifyClaimReviewed } = require('./notification.service');
 
 async function submitClaim(userId, payload) {
   validateObjectId(payload.itemId, 'item');
@@ -145,6 +146,10 @@ async function reviewClaim(claimId, adminUser, newStatus, adminNote) {
       console.error(`Chat unlock skipped for claim ${claim._id}: ${chatError.message}`);
     }
   }
+
+  // Let the claimant know the outcome (approval unlocks chat; rejection carries
+  // the reason). Fire-and-forget so it never blocks or undoes the review.
+  notifyClaimReviewed(claim).catch(() => {});
 
   return claim.toSafeObject();
 }

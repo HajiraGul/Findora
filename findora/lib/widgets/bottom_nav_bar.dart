@@ -63,29 +63,21 @@ class BottomNavBar extends StatelessWidget {
               activeIcon: Icon(Icons.near_me_rounded),
               label: 'Near Me',
             ),
-            // index 3 — BLE Tracker (guests see lock icon)
-            BottomNavigationBarItem(
-              icon: Icon(
-                isGuest
-                    ? Icons.bluetooth_disabled_rounded
-                    : Icons.bluetooth_searching_rounded,
-              ),
-              activeIcon: Icon(
-                isGuest
-                    ? Icons.bluetooth_disabled_rounded
-                    : Icons.bluetooth_searching_rounded,
-              ),
-              label: 'Tracker',
+            // index 3 — Best Matches (smart match suggestions)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.auto_awesome_outlined),
+              activeIcon: Icon(Icons.auto_awesome_rounded),
+              label: 'Matches',
             ),
-            // index 4 — Profile (guests see Sign In)
+            // index 4 — My Items (My Posts + My Claims; guests see Sign In)
             BottomNavigationBarItem(
               icon: Icon(
-                isGuest ? Icons.login_rounded : Icons.person_outline_rounded,
+                isGuest ? Icons.login_rounded : Icons.dashboard_outlined,
               ),
               activeIcon: Icon(
-                isGuest ? Icons.login_rounded : Icons.person_rounded,
+                isGuest ? Icons.login_rounded : Icons.dashboard_rounded,
               ),
-              label: isGuest ? 'Sign In' : 'Profile',
+              label: isGuest ? 'Sign In' : 'My Items',
             ),
           ],
         ),

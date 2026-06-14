@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../controllers/notification_controller.dart';
 import '../models/notification_model.dart';
 import 'match_suggestions_screen.dart';
+import 'my_claims_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -30,6 +31,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         MaterialPageRoute(
           builder: (_) => MatchSuggestionsScreen(itemId: itemId),
         ),
+      );
+    } else if (n.type == 'claim') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MyClaimsScreen()),
       );
     }
   }
@@ -120,7 +126,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _notificationCard(AppNotification n) {
     final visual = _visualFor(n.type);
-    final tappable = n.type == 'match' && (n.itemId?.isNotEmpty ?? false);
+    final tappable =
+        (n.type == 'match' && (n.itemId?.isNotEmpty ?? false)) ||
+        n.type == 'claim';
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),

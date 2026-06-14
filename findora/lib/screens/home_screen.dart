@@ -4,6 +4,8 @@ import '../controllers/auth_controller.dart';
 import '../controllers/item_controller.dart';
 import '../controllers/notification_controller.dart';
 import '../models/item_model.dart';
+import '../routes/app_routes.dart';
+import '../utils/picked_image_data.dart';
 import '../widgets/item_card.dart';
 import '../widgets/category_chip.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -14,10 +16,14 @@ import 'item_detail_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'post_item_screen.dart';
-import 'ble_tracking_screen.dart';
+import 'best_matches_screen.dart';
+import 'my_activity_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import 'account_settings_screen.dart';
+import 'privacy_security_screen.dart';
+import 'help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
@@ -32,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen>
   int _navIndex = 0;
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -121,20 +128,20 @@ class _HomeScreenState extends State<HomeScreen>
       );
     } else if (index == 3) {
       if (widget.isGuest) {
-        _showGuestBlock('use the BLE Tracker');
+        _showGuestBlock('view your best matches');
       } else {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const BleTrackingScreen()),
+          MaterialPageRoute(builder: (_) => const BestMatchesScreen()),
         );
       }
     } else if (index == 4) {
       if (widget.isGuest) {
-        _showGuestBlock('view your profile');
+        _showGuestBlock('view your posts and claims');
       } else {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          MaterialPageRoute(builder: (_) => const MyActivityScreen()),
         );
       }
     } else {
@@ -162,7 +169,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: widget.isGuest ? null : _buildSidebar(),
       body: Column(
         children: [
           _buildHeader(),
@@ -204,6 +213,9 @@ class _HomeScreenState extends State<HomeScreen>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Profile avatar → opens the sidebar drawer ──────────
+              _buildProfileAvatar(),
+              const SizedBox(width: 12),
               // ── Left: location + greeting ──────────────────────────
               Expanded(
                 child: Column(
@@ -233,91 +245,68 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
-                      widget.isGuest ? 'Browse Items' : 'Good morning 👋',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
+                      widget.isGuest ? 'Welcome' : 'Welcome back',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.8),
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      widget.isGuest
-                          ? 'Sign in to post or claim items'
-                          : 'Find what you\'re looking for',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.75),
-                      ),
-                    ),
+                    widget.isGuest
+                        ? const Text(
+                            'Browse Items',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: -0.3,
+                            ),
+                          )
+                        : Obx(
+                            () => Text(
+                              _displayName(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              // ── Right: settings + stat badges ─────────────────────
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // ── Right: notification bell + messages ────────────────
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ✅ Messages + Settings icons pinned to true right edge
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _headerBell(),
-                      const SizedBox(width: 6),
-                      _headerIconButton(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        onTap: () {
-                          if (widget.isGuest) {
-                            _showGuestBlock('view your messages');
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MessagesScreen(),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 6),
-                      _headerIconButton(
-                        icon: Icons.settings_outlined,
-                        onTap: () {
-                          if (widget.isGuest) {
-                            _showGuestBlock('access settings');
-                          } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SettingsScreen(),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ],
+                  _headerBell(),
+                  const SizedBox(width: 6),
+                  _headerIconButton(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    onTap: () {
+                      if (widget.isGuest) {
+                        _showGuestBlock('view your messages');
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MessagesScreen(),
+                          ),
+                        );
+                      }
+                    },
                   ),
-                  const SizedBox(height: 6),
-                  Obx(() => _statBadge(
-                    _itemController.items
-                        .where((i) => i.status == ItemStatus.lost)
-                        .length
-                        .toString(),
-                    'Lost',
-                    const Color(0xFFEF4444),
-                  )),
-                  const SizedBox(height: 6),
-                  Obx(() => _statBadge(
-                    _itemController.items
-                        .where((i) => i.status == ItemStatus.found)
-                        .length
-                        .toString(),
-                    'Found',
-                    const Color(0xFF16A34A),
-                  )),
                 ],
               ),
             ],
@@ -419,30 +408,324 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _statBadge(String count, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+  // Signed-in user's display name for the header. Reactive (called inside an
+  // Obx) so it updates the moment the profile loads.
+  String _displayName() {
+    final name = Get.find<AuthController>().user.value?.fullName.trim() ?? '';
+    return name.isEmpty ? 'Findora User' : name;
+  }
+
+  // Circular avatar in the header. Tapping it opens the sidebar (guests are
+  // nudged to sign in instead, since they have no profile).
+  Widget _buildProfileAvatar() {
+    return GestureDetector(
+      onTap: () {
+        if (widget.isGuest) {
+          _showGuestBlock('view your profile');
+        } else {
+          _scaffoldKey.currentState?.openDrawer();
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+        ),
+        child: Obx(() {
+          final avatar = imageProviderFromStoredValue(
+            Get.find<AuthController>().user.value?.avatarUrl ?? '',
+          );
+          return CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.white,
+            backgroundImage: avatar,
+            child: avatar == null
+                ? const Icon(
+                    Icons.person_rounded,
+                    color: Color(0xFF2563EB),
+                    size: 24,
+                  )
+                : null,
+          );
+        }),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    );
+  }
+
+  // ─── Sidebar (Drawer) ───────────────────────────────────────────────────────
+
+  Widget _buildSidebar() {
+    return Drawer(
+      backgroundColor: const Color(0xFFF8FAFC),
+      child: Column(
         children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            '$count $label',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+          _buildSidebarHeader(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              children: [
+                _sidebarItem(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Profile',
+                  subtitle: 'View and edit your profile',
+                  onTap: () => _openFromDrawer(const ProfileScreen()),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                _sidebarItem(
+                  icon: Icons.manage_accounts_outlined,
+                  label: 'Account Settings',
+                  subtitle: 'Manage profile information',
+                  onTap: () => _openFromDrawer(const AccountSettingsScreen()),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                _sidebarItem(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Messages',
+                  subtitle: 'Your conversations',
+                  onTap: () => _openFromDrawer(const MessagesScreen()),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                _sidebarItem(
+                  icon: Icons.lock_outline_rounded,
+                  label: 'Privacy & Security',
+                  subtitle: 'Password and protection',
+                  onTap: () => _openFromDrawer(const PrivacySecurityScreen()),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                _sidebarItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  subtitle: 'App preferences',
+                  onTap: () => _openFromDrawer(const SettingsScreen()),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                _sidebarItem(
+                  icon: Icons.help_outline_rounded,
+                  label: 'Help & Support',
+                  subtitle: 'FAQ and contact support',
+                  onTap: () => _openFromDrawer(const HelpSupportScreen()),
+                ),
+              ],
             ),
+          ),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          _buildSidebarLogout(),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarHeader() {
+    return Obx(() {
+      final user = Get.find<AuthController>().user.value;
+      final name = (user?.fullName.trim().isNotEmpty ?? false)
+          ? user!.fullName
+          : 'Findora User';
+      final email = user?.email ?? '';
+      final avatar = imageProviderFromStoredValue(user?.avatarUrl ?? '');
+
+      return Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1D4ED8), Color(0xFF2563EB), Color(0xFF3B82F6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.7),
+                      width: 2,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    backgroundImage: avatar,
+                    child: avatar == null
+                        ? const Icon(
+                            Icons.person_rounded,
+                            color: Color(0xFF2563EB),
+                            size: 32,
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (email.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _sidebarItem({
+    required IconData icon,
+    required String label,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    const tint = Color(0xFF2563EB);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: tint.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: tint, size: 21),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFFCBD5E1),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarLogout() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: _confirmLogout,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Close the drawer first, then push the destination so the drawer animation
+  // doesn't linger behind the new screen.
+  void _openFromDrawer(Widget screen) {
+    Navigator.pop(context);
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              await Get.find<AuthController>().logout();
+              Get.offAllNamed(AppRoutes.login);
+            },
+            child: const Text('Logout'),
           ),
         ],
       ),
