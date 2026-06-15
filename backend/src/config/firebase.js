@@ -9,18 +9,41 @@ let messaging = null;
 
 function isFirebaseConfigured() {
   return Boolean(
-    process.env.FIREBASE_SERVICE_ACCOUNT_PATH || process.env.FIREBASE_PROJECT_ID
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+      process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ||
+      process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+      process.env.FIREBASE_PROJECT_ID
   );
 }
 
-// Resolve the service-account path so both absolute paths and paths relative to
-// the backend root (e.g. ./service-account.json) work. Without this, require()
-// would resolve a relative path against this file's folder (src/config) and a
-// bare filename would be treated as an npm module.
-function resolveServiceAccountPath() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  if (!raw) return null;
-  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+// Load the service-account credential. Order of preference:
+//   1. FIREBASE_SERVICE_ACCOUNT        — the raw JSON (set this on Vercel)
+//   2. FIREBASE_SERVICE_ACCOUNT_BASE64 — base64 of the JSON (avoids newline/quoting issues)
+//   3. FIREBASE_SERVICE_ACCOUNT_PATH   — a file path (convenient for local dev)
+// On serverless (Vercel) the key file isn't deployed, so the env-var forms are
+// the only ones that work there; the path form stays for local development.
+function loadServiceAccount() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (raw && raw.trim()) {
+    return JSON.parse(raw);
+  }
+
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (b64 && b64.trim()) {
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  }
+
+  const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (filePath && filePath.trim()) {
+    // Resolve relative paths (e.g. ./service-account.json) against the backend
+    // root, not this file's folder, and avoid bare names being treated as modules.
+    const resolved = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(process.cwd(), filePath);
+    return require(resolved);
+  }
+
+  return null;
 }
 
 function getApp() {
@@ -28,21 +51,21 @@ function getApp() {
 
   if (!isFirebaseConfigured()) {
     const error = new Error(
-      'Firebase is not configured. Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT_PATH in backend/.env'
+      'Firebase is not configured. Set FIREBASE_SERVICE_ACCOUNT (or _BASE64 / _PATH) and FIREBASE_PROJECT_ID'
     );
     error.statusCode = 503;
     throw error;
   }
 
-  const serviceAccountPath = resolveServiceAccountPath();
+  const serviceAccount = loadServiceAccount();
 
   firebaseApp = getApps().length
     ? getApps()[0]
     : initializeApp({
-        credential: serviceAccountPath
-          ? cert(require(serviceAccountPath))
-          : applicationDefault(),
-        projectId: process.env.FIREBASE_PROJECT_ID,
+        credential: serviceAccount ? cert(serviceAccount) : applicationDefault(),
+        projectId:
+          process.env.FIREBASE_PROJECT_ID ||
+          (serviceAccount && serviceAccount.project_id),
       });
 
   return firebaseApp;
