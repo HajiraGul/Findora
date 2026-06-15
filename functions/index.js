@@ -6,9 +6,6 @@ const { getMessaging } = require('firebase-admin/messaging');
 initializeApp();
 const db = getFirestore();
 
-// Fires when a participant appends a message to a chat. Does two things the
-// client is deliberately not allowed to do: (1) update the chat's lastMessage
-// summary, and (2) push an FCM notification to the OTHER participant's devices.
 exports.onNewChatMessage = onDocumentCreated(
   'chats/{chatId}/messages/{messageId}',
   async (event) => {

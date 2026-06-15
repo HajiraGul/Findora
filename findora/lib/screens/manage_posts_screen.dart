@@ -6,7 +6,8 @@ import '../models/item_model.dart';
 import 'post_review_screen.dart';
 
 class ManagePostsScreen extends StatefulWidget {
-  const ManagePostsScreen({super.key});
+  final bool embedded;
+  const ManagePostsScreen({super.key, this.embedded = false});
 
   @override
   State<ManagePostsScreen> createState() => _ManagePostsScreenState();
@@ -31,10 +32,13 @@ class _ManagePostsScreenState extends State<ManagePostsScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           'Manage Posts',
           style: TextStyle(color: Color(0xff17324D), fontWeight: FontWeight.w700),

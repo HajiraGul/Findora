@@ -5,7 +5,8 @@ import '../controllers/chat_controller.dart';
 import '../models/chat_model.dart';
 
 class ManageCommunicationScreen extends StatefulWidget {
-  const ManageCommunicationScreen({super.key});
+  final bool embedded;
+  const ManageCommunicationScreen({super.key, this.embedded = false});
 
   @override
   State<ManageCommunicationScreen> createState() =>
@@ -48,13 +49,16 @@ class _ManageCommunicationScreenState extends State<ManageCommunicationScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xff17324D),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Color(0xff17324D),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           "Manage Communication",
           style: TextStyle(

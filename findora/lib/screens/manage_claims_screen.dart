@@ -6,7 +6,8 @@ import '../models/claim_model.dart';
 import 'claim_review_screen.dart';
 
 class ManageClaimsScreen extends StatefulWidget {
-  const ManageClaimsScreen({super.key});
+  final bool embedded;
+  const ManageClaimsScreen({super.key, this.embedded = false});
 
   @override
   State<ManageClaimsScreen> createState() => _ManageClaimsScreenState();
@@ -47,10 +48,13 @@ class _ManageClaimsScreenState extends State<ManageClaimsScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           'Manage Claims',
           style: TextStyle(color: Color(0xff17324D), fontWeight: FontWeight.w700),

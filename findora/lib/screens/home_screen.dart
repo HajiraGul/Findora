@@ -457,57 +457,43 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSidebar() {
     return Drawer(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF5FAFF),
       child: Column(
         children: [
           _buildSidebarHeader(),
+          const SizedBox(height: 8),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 6),
               children: [
                 _sidebarItem(
-                  icon: Icons.person_outline_rounded,
+                  icon: Icons.person_rounded,
                   label: 'Profile',
-                  subtitle: 'View and edit your profile',
                   onTap: () => _openFromDrawer(const ProfileScreen()),
                 ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _sidebarItem(
-                  icon: Icons.manage_accounts_outlined,
+                  icon: Icons.manage_accounts_rounded,
                   label: 'Account Settings',
-                  subtitle: 'Manage profile information',
                   onTap: () => _openFromDrawer(const AccountSettingsScreen()),
                 ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
                 _sidebarItem(
-                  icon: Icons.chat_bubble_outline_rounded,
+                  icon: Icons.chat_bubble_rounded,
                   label: 'Messages',
-                  subtitle: 'Your conversations',
                   onTap: () => _openFromDrawer(const MessagesScreen()),
                 ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
                 _sidebarItem(
-                  icon: Icons.lock_outline_rounded,
+                  icon: Icons.lock_rounded,
                   label: 'Privacy & Security',
-                  subtitle: 'Password and protection',
                   onTap: () => _openFromDrawer(const PrivacySecurityScreen()),
                 ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
                 _sidebarItem(
-                  icon: Icons.settings_outlined,
+                  icon: Icons.settings_rounded,
                   label: 'Settings',
-                  subtitle: 'App preferences',
                   onTap: () => _openFromDrawer(const SettingsScreen()),
                 ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
                 _sidebarItem(
-                  icon: Icons.help_outline_rounded,
+                  icon: Icons.help_rounded,
                   label: 'Help & Support',
-                  subtitle: 'FAQ and contact support',
                   onTap: () => _openFromDrawer(const HelpSupportScreen()),
                 ),
               ],
@@ -515,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
           _buildSidebarLogout(),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 10),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
         ],
       ),
     );
@@ -559,10 +545,13 @@ class _HomeScreenState extends State<HomeScreen>
                     backgroundColor: Colors.white,
                     backgroundImage: avatar,
                     child: avatar == null
-                        ? const Icon(
-                            Icons.person_rounded,
-                            color: Color(0xFF2563EB),
-                            size: 32,
+                        ? Text(
+                            _initials(name),
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 22,
+                            ),
                           )
                         : null,
                   ),
@@ -609,91 +598,38 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _sidebarItem({
     required IconData icon,
     required String label,
-    String? subtitle,
     required VoidCallback onTap,
   }) {
-    const tint = Color(0xFF2563EB);
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: tint.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: tint, size: 21),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xFFCBD5E1),
-              size: 20,
-            ),
-          ],
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        leading: Icon(icon, color: const Color(0xFF64748B)),
+        title: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF17324D),
+          ),
         ),
+        onTap: onTap,
       ),
     );
   }
 
   Widget _buildSidebarLogout() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: _confirmLogout,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFEF2F2),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Logout',
-                style: TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
+    return ListTile(
+      leading: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444)),
+      title: const Text(
+        'Logout',
+        style: TextStyle(
+          color: Color(0xFFEF4444),
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
         ),
       ),
+      onTap: _confirmLogout,
     );
   }
 
@@ -730,6 +666,15 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     );
+  }
+
+  String _initials(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+    return (parts.first.characters.first + parts.last.characters.first)
+        .toUpperCase();
   }
 
   // ─── Search Bar ────────────────────────────────────────────────────────────

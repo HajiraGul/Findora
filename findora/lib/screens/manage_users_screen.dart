@@ -5,7 +5,8 @@ import '../controllers/admin_controller.dart';
 import '../models/auth_user.dart';
 
 class ManageUsersScreen extends StatefulWidget {
-  const ManageUsersScreen({super.key});
+  final bool embedded;
+  const ManageUsersScreen({super.key, this.embedded = false});
 
   @override
   State<ManageUsersScreen> createState() => _ManageUsersScreenState();
@@ -76,10 +77,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xff17324D)),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: const Text(
           'Manage Users',
           style: TextStyle(color: Color(0xff17324D), fontWeight: FontWeight.w700),
