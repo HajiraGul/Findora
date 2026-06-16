@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import '../controllers/auth_controller.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/picked_image_data.dart';
 import 'my_posts_screen.dart';
 import 'my_claims_screen.dart';
@@ -15,6 +17,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   AuthController get _authController => Get.find<AuthController>();
+  final _imagePicker = ImagePicker();
+  bool _uploadingAvatar = false;
 
   @override
   void initState() {
@@ -24,6 +28,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _authController.refreshProfileSummary();
       }
     });
+  }
+
+  Future<void> _pickAvatar(ImageSource source) async {
+    PickedImageData picked;
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 900,
+      );
+      if (file == null) return;
+      picked = await PickedImageData.fromXFile(file);
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'Unable to pick image');
+      return;
+    }
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      await _authController.updateAvatar(avatarUrl: picked.dataUrl);
+      if (!mounted) return;
+      AppSnackBar.success(context, 'Profile photo updated');
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackBar.error(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  void _showAvatarSourceSheet() {
+    if (_uploadingAvatar) return;
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _pickAvatar(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _pickAvatar(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -153,25 +225,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              Container(
-                padding: const EdgeInsets.all(8),
+              GestureDetector(
+                onTap: _showAvatarSourceSheet,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
 
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
 
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(.12),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.12),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
 
-                child: const Icon(
-                  Icons.camera_alt_rounded,
-                  color: Color(0xff0A5EB0),
-                  size: 20,
+                  child: _uploadingAvatar
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xff0A5EB0),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.camera_alt_rounded,
+                          color: Color(0xff0A5EB0),
+                          size: 20,
+                        ),
                 ),
               ),
             ],
