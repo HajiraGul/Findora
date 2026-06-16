@@ -11,6 +11,7 @@ class ClaimModel {
   final DateTime createdAt;
   final String? adminNote;
   final String? proofType;
+  final List<String> proofImages;
   final List<ClaimAnswer> answers;
 
   ClaimModel({
@@ -24,6 +25,7 @@ class ClaimModel {
     required this.createdAt,
     this.adminNote,
     this.proofType,
+    this.proofImages = const [],
     required this.answers,
   });
 
@@ -51,6 +53,11 @@ class ClaimModel {
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now(),
       adminNote: adminNote.isNotEmpty ? adminNote : null,
       proofType: proofType.isNotEmpty ? proofType : null,
+      proofImages: (json['proofImages'] as List?)
+              ?.map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const [],
       answers: (json['answers'] as List?)
               ?.map((a) => ClaimAnswer(
                     question: a['question']?.toString() ?? '',

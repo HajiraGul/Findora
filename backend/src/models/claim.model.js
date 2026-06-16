@@ -47,6 +47,10 @@ const claimSchema = new mongoose.Schema(
       trim: true,
       maxlength: 80,
     },
+    proofImages: {
+      type: [String],
+      default: [],
+    },
     adminNote: {
       type: String,
       trim: true,
@@ -96,6 +100,7 @@ claimSchema.methods.toSafeObject = function toSafeObject() {
     status: this.status,
     answers: this.answers.map((a) => ({ question: a.question, answer: a.answer })),
     proofType: this.proofType || null,
+    proofImages: Array.isArray(this.proofImages) ? this.proofImages : [],
     adminNote: this.adminNote || null,
     reviewedBy: this.reviewedBy ? this.reviewedBy.toString() : null,
     reviewedAt: this.reviewedAt || null,

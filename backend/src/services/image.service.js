@@ -2,7 +2,7 @@ const { configureCloudinary } = require('../config/cloudinary');
 
 const CLOUDINARY_HOST_RE = /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//i;
 
-async function uploadItemImages(images = []) {
+async function uploadImages(images = [], folder = 'findora/items') {
   if (!Array.isArray(images) || images.length === 0) {
     return { urls: [], publicIds: [] };
   }
@@ -23,7 +23,7 @@ async function uploadItemImages(images = []) {
     }
 
     const result = await cloudinary.uploader.upload(source, {
-      folder: 'findora/items',
+      folder,
       resource_type: 'image',
       overwrite: false,
     });
@@ -38,6 +38,14 @@ async function uploadItemImages(images = []) {
     urls: uploaded.map((image) => image.url).filter(Boolean),
     publicIds: uploaded.map((image) => image.publicId).filter(Boolean),
   };
+}
+
+function uploadItemImages(images = []) {
+  return uploadImages(images, 'findora/items');
+}
+
+function uploadClaimImages(images = []) {
+  return uploadImages(images, 'findora/claims');
 }
 
 function publicIdFromCloudinaryUrl(url) {
@@ -55,5 +63,7 @@ function publicIdFromCloudinaryUrl(url) {
 }
 
 module.exports = {
+  uploadImages,
   uploadItemImages,
+  uploadClaimImages,
 };

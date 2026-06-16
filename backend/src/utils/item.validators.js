@@ -232,4 +232,5 @@ module.exports = {
   validateImagePayload,
   validateListQuery,
   validateNearbyQuery,
+  validateImageUrls,
 };

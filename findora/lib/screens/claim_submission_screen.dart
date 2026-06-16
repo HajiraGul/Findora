@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../controllers/claim_controller.dart';
 import '../models/item_model.dart';
+import '../utils/picked_image_data.dart';
 import 'claim_status_screen.dart';
 
 class ClaimSubmissionScreen extends StatefulWidget {
@@ -27,6 +29,9 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
   final _proofController = TextEditingController();
   late String _selectedProofType;
   bool _agreedToTerms = false;
+
+  final _imagePicker = ImagePicker();
+  final List<PickedImageData> _proofImages = [];
 
   // Lost post  -> the responder is the FINDER (proving they have the item).
   // Found post -> the responder is the OWNER (proving ownership).
@@ -148,6 +153,8 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
       'itemId': widget.item.id,
       'answers': answers,
       'proofType': _selectedProofType,
+      if (_proofImages.isNotEmpty)
+        'proofImages': _proofImages.map((p) => p.dataUrl).toList(),
     });
 
     setState(() => _isLoading = false);
@@ -778,6 +785,74 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
     );
   }
 
+  Future<void> _pickProofImage(ImageSource source) async {
+    if (_proofImages.length >= 4) {
+      _showError('You can attach up to 4 photos');
+      return;
+    }
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1200,
+      );
+      if (file == null) return;
+
+      final picked = await PickedImageData.fromXFile(file);
+      if (!mounted) return;
+      setState(() => _proofImages.add(picked));
+    } on Exception catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('permission') || msg.contains('denied')) {
+        _showError('Permission denied. Please allow access in Settings.');
+      } else {
+        _showError('Unable to pick image');
+      }
+    }
+  }
+
+  void _showProofSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Future.delayed(
+                    const Duration(milliseconds: 300),
+                    () => _pickProofImage(ImageSource.gallery),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Future.delayed(
+                    const Duration(milliseconds: 300),
+                    () => _pickProofImage(ImageSource.camera),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProofSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -877,67 +952,116 @@ class _ClaimSubmissionScreenState extends State<ClaimSubmissionScreen> {
             }).toList(),
           ),
           const SizedBox(height: 14),
-          GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text(
-                    'File upload — requires backend integration',
+          if (_proofImages.isNotEmpty)
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                ..._proofImages.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final image = entry.value;
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image(
+                          image: image.imageProvider,
+                          width: 84,
+                          height: 84,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _proofImages.removeAt(index)),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                if (_proofImages.length < 4)
+                  GestureDetector(
+                    onTap: _showProofSourceSheet,
+                    child: Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Icon(Icons.add, color: Color(0xFF2563EB)),
+                    ),
                   ),
-                  backgroundColor: const Color(0xFF2563EB),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              ],
+            )
+          else
+            GestureDetector(
+              onTap: _showProofSourceSheet,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF2563EB).withOpacity(0.3),
+                    width: 1.5,
+                    style: BorderStyle.solid,
                   ),
-                  margin: const EdgeInsets.all(16),
                 ),
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF2563EB).withOpacity(0.3),
-                  width: 1.5,
-                  style: BorderStyle.solid,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.cloud_upload_outlined,
+                        color: Color(0xFF2563EB),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Tap to upload photo',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'PNG or JPG · up to 4 photos',
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                    ),
+                  ],
                 ),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.cloud_upload_outlined,
-                      color: Color(0xFF2563EB),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Tap to upload file',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF2563EB),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'PNG, JPG, PDF up to 10MB',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-                  ),
-                ],
               ),
             ),
-          ),
         ],
       ),
     );

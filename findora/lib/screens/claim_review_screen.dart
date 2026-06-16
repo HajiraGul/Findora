@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../controllers/chat_controller.dart';
 import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
+import '../utils/picked_image_data.dart';
 
 class ClaimReviewScreen extends StatefulWidget {
   final ClaimModel claim;
@@ -108,6 +109,34 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
     );
   }
 
+  void _showProofPreview(ImageProvider provider) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            InteractiveViewer(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image(image: provider, fit: BoxFit.contain),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final claim = widget.claim;
@@ -207,28 +236,65 @@ class _ClaimReviewScreenState extends State<ClaimReviewScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            Container(
-              height: 160,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: const Color(0xffEAF5FF),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.image, size: 50, color: Color(0xff0A5EB0)),
-                  const SizedBox(height: 8),
-                  Text(
-                    claim.proofType ?? 'No proof type specified',
-                    style: const TextStyle(
-                      color: Color(0xff0A5EB0),
-                      fontWeight: FontWeight.w500,
-                    ),
+            if (claim.proofImages.isNotEmpty) ...[
+              if (claim.proofType != null) ...[
+                Text(
+                  claim.proofType!,
+                  style: const TextStyle(
+                    color: Color(0xff0A5EB0),
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
+                ),
+                const SizedBox(height: 10),
+              ],
+              SizedBox(
+                height: 160,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: claim.proofImages.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (_, index) {
+                    final provider =
+                        imageProviderFromStoredValue(claim.proofImages[index]);
+                    if (provider == null) return const SizedBox.shrink();
+                    return GestureDetector(
+                      onTap: () => _showProofPreview(provider),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image(
+                          image: provider,
+                          width: 160,
+                          height: 160,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
+            ] else
+              Container(
+                height: 160,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: const Color(0xffEAF5FF),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.image, size: 50, color: Color(0xff0A5EB0)),
+                    const SizedBox(height: 8),
+                    Text(
+                      claim.proofType ?? 'No proof type specified',
+                      style: const TextStyle(
+                        color: Color(0xff0A5EB0),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             const SizedBox(height: 20),
 

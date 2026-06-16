@@ -4,6 +4,7 @@ const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
 const { ensureChatForClaim } = require('./chat.service');
 const { notifyClaimReviewed } = require('./notification.service');
+const { uploadClaimImages } = require('./image.service');
 
 async function submitClaim(userId, payload) {
   validateObjectId(payload.itemId, 'item');
@@ -32,11 +33,18 @@ async function submitClaim(userId, payload) {
     throw error;
   }
 
+  let proofImages = [];
+  if (Array.isArray(payload.proofImages) && payload.proofImages.length > 0) {
+    const uploaded = await uploadClaimImages(payload.proofImages);
+    proofImages = uploaded.urls;
+  }
+
   const claim = await Claim.create({
     item: payload.itemId,
     claimant: userId,
     answers: payload.answers,
     proofType: payload.proofType,
+    proofImages,
   });
   await claim.populate('item', 'title category');
   await claim.populate('claimant', 'fullName');

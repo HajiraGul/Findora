@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const { validateImageUrls } = require('./item.validators');
+
 const allowedProofTypes = [
   // Ownership proof — owner claiming a FOUND item
   'Photo receipt',
@@ -61,6 +63,12 @@ function validateClaimPayload(payload) {
       errors.push(`Proof type must be one of: ${allowedProofTypes.join(', ')}`);
     }
     if (proofType) data.proofType = proofType;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'proofImages')) {
+    const { errors: imageErrors, images } = validateImageUrls(payload.proofImages);
+    errors.push(...imageErrors);
+    if (images.length > 0) data.proofImages = images;
   }
 
   return { errors, data };
