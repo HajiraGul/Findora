@@ -14,7 +14,9 @@ import 'item_detail_screen.dart';
 const LatLng _defaultCenter = LatLng(33.7215, 73.0433);
 
 class MapViewScreen extends StatefulWidget {
-  const MapViewScreen({super.key});
+  final bool embedded;
+
+  const MapViewScreen({super.key, this.embedded = false});
 
   @override
   State<MapViewScreen> createState() => _MapViewScreenState();
@@ -107,7 +109,9 @@ class _MapViewScreenState extends State<MapViewScreen> {
         SnackBar(
           content: const Text('Couldn\'t get your current location'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -118,35 +122,43 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Stack(
+      children: [
+        _buildMap(),
+        Positioned(left: 12, bottom: 8, child: _buildAttribution()),
+        Positioned(top: 16, left: 0, right: 0, child: _buildFilterRow()),
+        Positioned(top: 70, right: 16, child: _buildLegend()),
+        if (widget.embedded)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: GestureDetector(
+              onTap: _locating ? null : _recenterOnMe,
+              child: _buildLocateButton(),
+            ),
+          ),
+        if (_selectedItem != null)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: _buildItemSheet(context, _selectedItem!),
+          )
+        else
+          Positioned(bottom: 20, left: 20, right: 20, child: _buildMapStats()),
+      ],
+    );
+
+    if (widget.embedded) {
+      return content;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: Column(
         children: [
           _buildHeader(context),
-          Expanded(
-            child: Stack(
-              children: [
-                _buildMap(),
-                Positioned(left: 12, bottom: 8, child: _buildAttribution()),
-                Positioned(top: 16, left: 0, right: 0, child: _buildFilterRow()),
-                Positioned(top: 70, right: 16, child: _buildLegend()),
-                if (_selectedItem != null)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildItemSheet(context, _selectedItem!),
-                  )
-                else
-                  Positioned(
-                    bottom: 20,
-                    left: 20,
-                    right: 20,
-                    child: _buildMapStats(),
-                  ),
-              ],
-            ),
-          ),
+          Expanded(child: content),
         ],
       ),
     );
@@ -164,7 +176,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
           _mapReady = true;
           _maybeAutoFit();
         },
-        onTap: (_, __) {
+        onTap: (_, _) {
           if (_selectedItem != null) setState(() => _selectedItem = null);
         },
       ),
@@ -327,32 +339,45 @@ class _MapViewScreenState extends State<MapViewScreen> {
               ),
               GestureDetector(
                 onTap: _locating ? null : _recenterOnMe,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: _locating
-                      ? const Padding(
-                          padding: EdgeInsets.all(11),
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.my_location_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                ),
+                child: _buildLocateButton(onGradient: true),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLocateButton({bool onGradient = false}) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: onGradient ? Colors.white.withValues(alpha: 0.2) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: onGradient
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: _locating
+          ? Padding(
+              padding: const EdgeInsets.all(11),
+              child: CircularProgressIndicator(
+                color: onGradient ? Colors.white : const Color(0xFF2563EB),
+                strokeWidth: 2,
+              ),
+            )
+          : Icon(
+              Icons.my_location_rounded,
+              color: onGradient ? Colors.white : const Color(0xFF2563EB),
+              size: 18,
+            ),
     );
   }
 
@@ -366,8 +391,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
           final Color color = f == 'Lost'
               ? const Color(0xFFEF4444)
               : f == 'Found'
-                  ? const Color(0xFF16A34A)
-                  : const Color(0xFF2563EB);
+              ? const Color(0xFF16A34A)
+              : const Color(0xFF2563EB);
           return GestureDetector(
             onTap: () {
               setState(() {
@@ -446,10 +471,12 @@ class _MapViewScreenState extends State<MapViewScreen> {
   }
 
   Widget _buildMapStats() {
-    final lostCount =
-        _filteredItems.where((i) => i.status == ItemStatus.lost).length;
-    final foundCount =
-        _filteredItems.where((i) => i.status == ItemStatus.found).length;
+    final lostCount = _filteredItems
+        .where((i) => i.status == ItemStatus.lost)
+        .length;
+    final foundCount = _filteredItems
+        .where((i) => i.status == ItemStatus.found)
+        .length;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -466,7 +493,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _statItem(lostCount.toString(), 'Lost Items', const Color(0xFFEF4444)),
+          _statItem(
+            lostCount.toString(),
+            'Lost Items',
+            const Color(0xFFEF4444),
+          ),
           Container(width: 1, height: 30, color: const Color(0xFFE2E8F0)),
           _statItem(
             foundCount.toString(),
@@ -507,8 +538,9 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   Widget _buildItemSheet(BuildContext context, ItemModel item) {
     final isLost = item.status == ItemStatus.lost;
-    final statusColor =
-        isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
+    final statusColor = isLost
+        ? const Color(0xFFEF4444)
+        : const Color(0xFF16A34A);
 
     return GestureDetector(
       onTap: () => Navigator.push(

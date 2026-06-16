@@ -9,8 +9,7 @@ import '../utils/picked_image_data.dart';
 import '../widgets/item_card.dart';
 import '../widgets/category_chip.dart';
 import '../widgets/bottom_nav_bar.dart';
-import 'map_view_screen.dart';
-import 'items_near_me_screen.dart';
+import 'location_hub_screen.dart';
 import 'search_filter_screen.dart';
 import 'item_detail_screen.dart';
 import 'login_screen.dart';
@@ -119,20 +118,24 @@ class _HomeScreenState extends State<HomeScreen>
     if (index == 1) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const MapViewScreen()),
+        MaterialPageRoute(builder: (_) => const LocationHubScreen()),
       );
     } else if (index == 2) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ItemsNearMeScreen()),
-      );
-    } else if (index == 3) {
       if (widget.isGuest) {
         _showGuestBlock('view your best matches');
       } else {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const BestMatchesScreen()),
+        );
+      }
+    } else if (index == 3) {
+      if (widget.isGuest) {
+        _showGuestBlock('view your messages');
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MessagesScreen()),
         );
       }
     } else if (index == 4) {
@@ -342,7 +345,10 @@ class _HomeScreenState extends State<HomeScreen>
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF2563EB), width: 1.5),
+                    border: Border.all(
+                      color: const Color(0xFF2563EB),
+                      width: 1.5,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -373,10 +379,7 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.15),
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.25),
-            width: 1,
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: 17),
       ),
@@ -450,11 +453,6 @@ class _HomeScreenState extends State<HomeScreen>
                   icon: Icons.manage_accounts_rounded,
                   label: 'Account Settings',
                   onTap: () => _openFromDrawer(const AccountSettingsScreen()),
-                ),
-                _sidebarItem(
-                  icon: Icons.chat_bubble_rounded,
-                  label: 'Messages',
-                  onTap: () => _openFromDrawer(const MessagesScreen()),
                 ),
                 _sidebarItem(
                   icon: Icons.lock_rounded,
@@ -644,8 +642,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts.first.characters.first.toUpperCase();
     return (parts.first.characters.first + parts.last.characters.first)
@@ -794,14 +795,25 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade300),
+              Icon(
+                Icons.search_off_rounded,
+                size: 64,
+                color: Colors.grey.shade300,
+              ),
               const SizedBox(height: 16),
               Text(
                 'No items found',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade400),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade400,
+                ),
               ),
               const SizedBox(height: 6),
-              Text('Try changing the filters', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              Text(
+                'Try changing the filters',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
             ],
           ),
         );
@@ -816,7 +828,8 @@ class _HomeScreenState extends State<HomeScreen>
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ItemDetailScreen(item: items[i], isGuest: widget.isGuest),
+                builder: (_) =>
+                    ItemDetailScreen(item: items[i], isGuest: widget.isGuest),
               ),
             ),
           ),

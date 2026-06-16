@@ -19,7 +19,7 @@ class BottomNavBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -51,23 +51,23 @@ class BottomNavBar extends StatelessWidget {
               activeIcon: Icon(Icons.home_rounded),
               label: 'Home',
             ),
-            // index 1 — Map
+            // index 1 — Location hub (Map + Near Me)
             const BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined),
-              activeIcon: Icon(Icons.map_rounded),
-              label: 'Map',
+              icon: Icon(Icons.explore_outlined),
+              activeIcon: Icon(Icons.explore_rounded),
+              label: 'Location',
             ),
-            // index 2 — Near Me
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.near_me_outlined),
-              activeIcon: Icon(Icons.near_me_rounded),
-              label: 'Near Me',
-            ),
-            // index 3 — Best Matches (smart match suggestions)
+            // index 2 — Best Matches (smart match suggestions)
             const BottomNavigationBarItem(
               icon: Icon(Icons.auto_awesome_outlined),
               activeIcon: Icon(Icons.auto_awesome_rounded),
               label: 'Matches',
+            ),
+            // index 3 — Messages
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              activeIcon: Icon(Icons.chat_bubble_rounded),
+              label: 'Messages',
             ),
             // index 4 — My Items (My Posts + My Claims; guests see Sign In)
             BottomNavigationBarItem(

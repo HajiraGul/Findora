@@ -12,7 +12,9 @@ const double _defaultLat = 33.7215;
 const double _defaultLng = 73.0433;
 
 class ItemsNearMeScreen extends StatefulWidget {
-  const ItemsNearMeScreen({super.key});
+  final bool embedded;
+
+  const ItemsNearMeScreen({super.key, this.embedded = false});
 
   @override
   State<ItemsNearMeScreen> createState() => _ItemsNearMeScreenState();
@@ -80,18 +82,21 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: Column(
-        children: [
-          _buildHeader(context),
-          _buildLocationNotice(),
-          _buildRadiusSlider(),
-          Obx(() => _buildSortRow()),
-          Expanded(child: Obx(() => _buildList())),
-        ],
-      ),
+    final content = Column(
+      children: [
+        if (!widget.embedded) _buildHeader(context),
+        _buildLocationNotice(),
+        _buildRadiusSlider(),
+        Obx(() => _buildSortRow()),
+        Expanded(child: Obx(() => _buildList())),
+      ],
     );
+
+    if (widget.embedded) {
+      return Container(color: const Color(0xFFF8FAFC), child: content);
+    }
+
+    return Scaffold(backgroundColor: const Color(0xFFF8FAFC), body: content);
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -125,7 +130,11 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -135,19 +144,29 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
                       children: [
                         const Text(
                           'Items Near Me',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                         Text(
                           _usingApprox
                               ? 'Approximate location'
                               : 'Based on your current location',
-                          style: const TextStyle(fontSize: 12, color: Colors.white70),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -158,10 +177,20 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(color: Color(0xFF4ADE80), shape: BoxShape.circle),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4ADE80),
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 5),
-                        const Text('Live', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                        const Text(
+                          'Live',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -170,7 +199,9 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
               const SizedBox(height: 20),
               Obx(() {
                 final count = _ctrl.nearbyItems.length;
-                final lostCount = _ctrl.nearbyItems.where((i) => i.status == ItemStatus.lost).length;
+                final lostCount = _ctrl.nearbyItems
+                    .where((i) => i.status == ItemStatus.lost)
+                    .length;
                 return Row(
                   children: [
                     _headerStat('$count', 'Nearby Items'),
@@ -199,8 +230,21 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.75))),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white.withOpacity(0.75),
+            ),
+          ),
         ],
       ),
     );
@@ -213,23 +257,50 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.radar_rounded, color: Color(0xFF2563EB), size: 18),
+              const Icon(
+                Icons.radar_rounded,
+                color: Color(0xFF2563EB),
+                size: 18,
+              ),
               const SizedBox(width: 8),
-              const Text('Search Radius', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+              const Text(
+                'Search Radius',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(20)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: Text(
                   '${_radiusKm.toStringAsFixed(1)} km',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2563EB),
+                  ),
                 ),
               ),
             ],
@@ -254,8 +325,14 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('0.2 km', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-              Text('5.0 km', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              Text(
+                '0.2 km',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
+              Text(
+                '5.0 km',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              ),
             ],
           ),
         ],
@@ -269,23 +346,49 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          Text('$count items found', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+          Text(
+            '$count items found',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF0F172A),
+            ),
+          ),
           const Spacer(),
-          const Text('Sort: ', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+          const Text(
+            'Sort: ',
+            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
           GestureDetector(
             onTap: () {
-              setState(() => _sortBy = _sortBy == 'Distance' ? 'Newest' : 'Distance');
+              setState(
+                () => _sortBy = _sortBy == 'Distance' ? 'Newest' : 'Distance',
+              );
               _loadNearby();
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_sortBy, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF2563EB))),
+                  Text(
+                    _sortBy,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.swap_vert_rounded, size: 14, color: Color(0xFF2563EB)),
+                  const Icon(
+                    Icons.swap_vert_rounded,
+                    size: 14,
+                    color: Color(0xFF2563EB),
+                  ),
                 ],
               ),
             ),
@@ -309,12 +412,20 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_off_rounded, color: Color(0xFFD97706), size: 18),
+          const Icon(
+            Icons.location_off_rounded,
+            color: Color(0xFFD97706),
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               _locationNotice!,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.3),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF92400E),
+                height: 1.3,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -328,7 +439,11 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
               ),
               child: const Text(
                 'Retry',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -364,11 +479,25 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.near_me_disabled_rounded, size: 64, color: Colors.grey.shade300),
+            Icon(
+              Icons.near_me_disabled_rounded,
+              size: 64,
+              color: Colors.grey.shade300,
+            ),
             const SizedBox(height: 16),
-            Text('No items in this radius', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade400)),
+            Text(
+              'No items in this radius',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade400,
+              ),
+            ),
             const SizedBox(height: 6),
-            Text('Try increasing the search radius', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+            Text(
+              'Try increasing the search radius',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            ),
           ],
         ),
       );
@@ -387,7 +516,9 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
                 item: item,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ItemDetailScreen(item: item)),
+                  MaterialPageRoute(
+                    builder: (_) => ItemDetailScreen(item: item),
+                  ),
                 ),
               ),
               if (dist != null)
@@ -395,16 +526,30 @@ class _ItemsNearMeScreenState extends State<ItemsNearMeScreen> {
                   bottom: 28,
                   right: 16,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: const Color(0xFF2563EB), borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.near_me_rounded, color: Colors.white, size: 11),
+                        const Icon(
+                          Icons.near_me_rounded,
+                          color: Colors.white,
+                          size: 11,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           '${dist.toStringAsFixed(1)} km',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),

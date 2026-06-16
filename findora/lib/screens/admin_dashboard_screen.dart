@@ -584,7 +584,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _drawerItem(Icons.inventory_2_rounded, 'Manage Posts', 1),
           _drawerItem(Icons.verified_user_rounded, 'Manage Claims', 2),
           _drawerItem(Icons.people_alt_rounded, 'Manage Users', 3),
-          _drawerItem(Icons.chat_bubble_rounded, 'Messages', 4),
           const Spacer(),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
           ListTile(
