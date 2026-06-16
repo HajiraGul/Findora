@@ -93,6 +93,24 @@ class AuthController extends GetxController {
     );
   }
 
+  /// Runs "Continue with Google": signs into Firebase with the Google
+  /// credential, exchanges the Firebase ID token for our backend JWT, and
+  /// stores the session. Returns `false` if the user cancelled the picker.
+  Future<bool> googleSignIn() async {
+    try {
+      isLoading.value = true;
+      final idToken = await _firebaseAuth.signInWithGoogle();
+      if (idToken == null) return false; // cancelled
+
+      await _handleAuthResponse(
+        await _authApiService.googleSignIn(idToken: idToken),
+      );
+      return true;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> logout() async {
     final currentToken = token.value;
 
@@ -454,30 +472,33 @@ class AuthController extends GetxController {
   ) async {
     try {
       isLoading.value = true;
-      final response = await request();
-
-      if (!response.isOk) {
-        throw Exception(_extractErrorMessage(response.body));
-      }
-
-      final body = response.body;
-      if (body is! Map<String, dynamic>) {
-        throw Exception('Unexpected server response');
-      }
-
-      final authToken = body['token']?.toString();
-      final userJson = body['user'];
-
-      if (authToken == null || userJson is! Map<String, dynamic>) {
-        throw Exception('Authentication response is missing token or user');
-      }
-
-      final authUser = AuthUser.fromJson(userJson);
-      await _saveSession(authToken, authUser);
-      _storeDevelopmentOtp(body);
+      await _handleAuthResponse(await request());
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Persists the `{ token, user }` payload shared by every sign-in path
+  /// (login, register, Google). Throws a user-facing message on any problem.
+  Future<void> _handleAuthResponse(Response<dynamic> response) async {
+    if (!response.isOk) {
+      throw Exception(_extractErrorMessage(response.body));
+    }
+
+    final body = response.body;
+    if (body is! Map<String, dynamic>) {
+      throw Exception('Unexpected server response');
+    }
+
+    final authToken = body['token']?.toString();
+    final userJson = body['user'];
+
+    if (authToken == null || userJson is! Map<String, dynamic>) {
+      throw Exception('Authentication response is missing token or user');
+    }
+
+    await _saveSession(authToken, AuthUser.fromJson(userJson));
+    _storeDevelopmentOtp(body);
   }
 
   Future<void> _saveSession(String? authToken, AuthUser authUser) async {

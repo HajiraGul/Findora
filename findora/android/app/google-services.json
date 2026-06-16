@@ -12,7 +12,20 @@
           "package_name": "findora_technologies.com"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "784604787268-i5oifaoemjuql50dn2m88rhp8det2aiv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "findora_technologies.com",
+            "certificate_hash": "b134f18c24588649598d418b8b460d4b4b07c8c0"
+          }
+        },
+        {
+          "client_id": "784604787268-4dpvf8ghqjclhveeh3eggtefmd63n7np.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBgQTu2GhXKOKY-deKEld6QHeIeRFk0OAI"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "784604787268-4dpvf8ghqjclhveeh3eggtefmd63n7np.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

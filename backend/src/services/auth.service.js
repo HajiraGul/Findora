@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 
 const User = require('../models/user.model');
+const { getAuthClient } = require('../config/firebase');
 const {
   sendPasswordResetOtpEmail,
   sendVerificationOtpEmail,
@@ -80,6 +81,78 @@ async function loginUser(payload) {
   return {
     token: signToken(user),
     user: safeUser,
+  };
+}
+
+async function googleSignIn(payload) {
+  const idToken = payload && payload.idToken;
+
+  if (!idToken || typeof idToken !== 'string') {
+    const error = new Error('A Google ID token is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let decoded;
+  try {
+    decoded = await getAuthClient().verifyIdToken(idToken);
+  } catch (verifyError) {
+    const error = new Error('Google sign-in could not be verified');
+    error.statusCode = 401;
+    error.cause = verifyError;
+    throw error;
+  }
+
+  const email = (decoded.email || '').trim().toLowerCase();
+
+  if (!email) {
+    const error = new Error('Your Google account has no email address');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const googleId = decoded.uid;
+  const fullName = (decoded.name || '').trim() || 'Findora User';
+  const avatarUrl = decoded.picture || '';
+
+  let user = await User.findOne({ email }).select('+tokenVersion +googleId');
+
+  if (user) {
+    // Existing email account (local or google): link the Google identity and
+    // make sure they're treated as verified, then issue our backend token.
+    let changed = false;
+    if (user.provider !== 'google') {
+      user.provider = 'google';
+      changed = true;
+    }
+    if (user.googleId !== googleId) {
+      user.googleId = googleId;
+      changed = true;
+    }
+    if (!user.isEmailVerified) {
+      user.isEmailVerified = true;
+      changed = true;
+    }
+    if (!user.avatarUrl && avatarUrl) {
+      user.avatarUrl = avatarUrl;
+      changed = true;
+    }
+    if (changed) await user.save();
+  } else {
+    user = await User.create({
+      fullName,
+      email,
+      cityOrUniversity: 'Not specified',
+      provider: 'google',
+      googleId,
+      avatarUrl,
+      isEmailVerified: true,
+    });
+  }
+
+  return {
+    token: signToken(user),
+    user: user.toSafeObject(),
   };
 }
 
@@ -215,6 +288,7 @@ async function resendEmailOtp(payload) {
 module.exports = {
   registerUser,
   loginUser,
+  googleSignIn,
   logoutUser,
   requestPasswordReset,
   resetPassword,

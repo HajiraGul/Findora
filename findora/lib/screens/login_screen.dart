@@ -94,6 +94,26 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      final signedIn = await _authController.googleSignIn();
+      if (!signedIn || !mounted) return;
+
+      if (_authController.isAdmin) {
+        Get.offAllNamed(AppRoutes.adminDashboard);
+      } else {
+        Get.offAllNamed(AppRoutes.home);
+      }
+    } catch (error) {
+      if (mounted) {
+        AppSnackBar.error(
+          context,
+          error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -309,15 +329,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 20),
 
-                    CustomButton(
-                      label: 'Continue with Google',
-                      onPressed: () =>
-                          AppSnackBar.info(
-                            context,
-                            'Google Sign-In coming soon!',
-                          ),
-                      isOutlined: true,
-                      leadingWidget: _GoogleIcon(),
+                    Obx(
+                      () => CustomButton(
+                        label: 'Continue with Google',
+                        onPressed: _handleGoogleSignIn,
+                        isLoading: _authController.isLoading.value,
+                        isOutlined: true,
+                        leadingWidget: _GoogleIcon(),
+                      ),
                     ),
 
                     const SizedBox(height: 16),

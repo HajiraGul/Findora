@@ -8,6 +8,7 @@ const {
 const {
   registerUser,
   loginUser,
+  googleSignIn,
   logoutUser,
   requestPasswordReset,
   resetPassword,
@@ -49,6 +50,19 @@ async function login(req, res, next) {
     }
 
     const result = await loginUser(data);
+
+    return res.status(200).json({
+      message: 'Login successful',
+      ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function googleAuth(req, res, next) {
+  try {
+    const result = await googleSignIn(req.body);
 
     return res.status(200).json({
       message: 'Login successful',
@@ -156,6 +170,7 @@ async function resendOtp(req, res, next) {
 module.exports = {
   register,
   login,
+  googleAuth,
   me,
   logout,
   forgotPassword,

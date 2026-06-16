@@ -45,6 +45,10 @@ class AuthApiService extends GetConnect {
     return post('/auth/login', {'email': email, 'password': password});
   }
 
+  Future<Response<dynamic>> googleSignIn({required String idToken}) {
+    return post('/auth/google', {'idToken': idToken});
+  }
+
   Future<Response<dynamic>> register({
     required String fullName,
     required String email,

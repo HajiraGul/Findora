@@ -19,8 +19,11 @@ const userSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      // Optional: Google sign-in users have no phone. `sparse` lets the unique
+      // index ignore documents that omit the field, so multiple Google users
+      // (all phone-less) don't collide on a single null value.
       unique: true,
+      sparse: true,
       trim: true,
       maxlength: 20,
     },
@@ -30,9 +33,26 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120,
     },
+    // How this account authenticates. 'google' users sign in via the Google
+    // provider and have no password; 'local' users use email + password.
+    provider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
     password: {
       type: String,
-      required: true,
+      // Required only for local (email/password) accounts; Google users have
+      // no password.
+      required: function requirePassword() {
+        return this.provider !== 'google';
+      },
       minlength: 8,
       select: false,
     },
@@ -113,8 +133,9 @@ userSchema.methods.toSafeObject = function toSafeObject() {
     id: this._id.toString(),
     fullName: this.fullName,
     email: this.email,
-    phone: this.phone,
+    phone: this.phone || '',
     cityOrUniversity: this.cityOrUniversity,
+    provider: this.provider || 'local',
     role: this.role,
     isEmailVerified: this.isEmailVerified,
     avatarUrl: this.avatarUrl,

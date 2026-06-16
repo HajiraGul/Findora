@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
+import '../routes/app_routes.dart';
 import '../utils/app_snackbar.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
@@ -63,6 +64,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
 
       Get.to(() => OtpVerificationScreen(email: _emailController.text.trim()));
+    } catch (error) {
+      if (mounted) {
+        AppSnackBar.error(
+          context,
+          error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    // Google sign-in returns a fully verified session, so there's no OTP step —
+    // go straight to the app (admins land on their dashboard).
+    try {
+      final signedIn = await _authController.googleSignIn();
+      if (!signedIn || !mounted) return;
+
+      if (_authController.isAdmin) {
+        Get.offAllNamed(AppRoutes.adminDashboard);
+      } else {
+        Get.offAllNamed(AppRoutes.home);
+      }
     } catch (error) {
       if (mounted) {
         AppSnackBar.error(
@@ -164,15 +187,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CustomButton(
-                      label: 'Sign up with Google',
-                      onPressed: () =>
-                          AppSnackBar.info(
-                            context,
-                            'Google Sign-In coming soon!',
-                          ),
-                      isOutlined: true,
-                      leadingWidget: _GoogleIcon(),
+                    Obx(
+                      () => CustomButton(
+                        label: 'Sign up with Google',
+                        onPressed: _handleGoogleSignIn,
+                        isLoading: _authController.isLoading.value,
+                        isOutlined: true,
+                        leadingWidget: _GoogleIcon(),
+                      ),
                     ),
                     const SizedBox(height: 20),
                     Row(

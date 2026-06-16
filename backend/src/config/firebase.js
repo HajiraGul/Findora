@@ -1,9 +1,11 @@
 const path = require('path');
 const { initializeApp, applicationDefault, cert, getApps } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 let firebaseApp = null;
+let auth = null;
 let firestore = null;
 let messaging = null;
 
@@ -71,6 +73,15 @@ function getApp() {
   return firebaseApp;
 }
 
+// Admin Auth client, used to verify Firebase ID tokens minted on the device
+// after a Google sign-in (Continue with Google). Verifying server-side is what
+// lets us trust the Google identity and issue our own backend JWT.
+function getAuthClient() {
+  if (auth) return auth;
+  auth = getAuth(getApp());
+  return auth;
+}
+
 function getDb() {
   if (firestore) return firestore;
   firestore = getFirestore(getApp());
@@ -87,6 +98,7 @@ function getMessagingClient() {
 }
 
 module.exports = {
+  getAuthClient,
   getDb,
   getMessagingClient,
   isFirebaseConfigured,

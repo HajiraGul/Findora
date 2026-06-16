@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// "Shadow" Firebase Auth account, used only so the device carries a Firebase
 /// identity that satisfies Firestore security rules. This is NOT the app's real
@@ -64,7 +65,39 @@ class FirebaseAuthService {
     }
   }
 
+  /// Runs the "Continue with Google" flow and returns a *Firebase* ID token
+  /// that the backend can verify with the Admin SDK to mint our own JWT.
+  ///
+  /// Returns `null` if the user cancels the Google account picker (so callers
+  /// can quietly abort rather than show an error). Throws on real failures.
+  Future<String?> signInWithGoogle() async {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return null; // user dismissed the picker
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+      accessToken: googleAuth.accessToken,
+    );
+
+    // Sign into Firebase with the Google credential. This also gives the device
+    // a real (non-shadow) Firebase identity, which satisfies the Firestore
+    // chat/push rules for this user.
+    final userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
+
+    final token = await userCredential.user?.getIdToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Google sign-in did not return a valid token');
+    }
+
+    return token;
+  }
+
   Future<void> signOut() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
     try {
       await FirebaseAuth.instance.signOut();
     } catch (_) {}
