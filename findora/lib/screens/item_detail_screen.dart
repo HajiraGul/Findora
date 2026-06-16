@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:share_plus/share_plus.dart';
 import '../controllers/claim_controller.dart';
 import '../models/claim_model.dart';
 import '../models/item_model.dart';
+import '../utils/app_snackbar.dart';
+import 'item_location_map_screen.dart';
 import 'login_screen.dart';
 import 'claim_submission_screen.dart';
 
@@ -57,7 +62,7 @@ class ItemDetailScreen extends StatelessWidget {
                     color: Colors.white,
                     size: 18,
                   ),
-                  onPressed: () {},
+                  onPressed: () => _shareItem(context),
                 ),
               ),
             ],
@@ -281,81 +286,12 @@ class ItemDetailScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        // Map placeholder
+                        // Map preview (tappable -> full-screen map)
                         ClipRRect(
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(14),
                           ),
-                          child: Container(
-                            height: 160,
-                            color: const Color(0xFFE2E8F0),
-                            child: Stack(
-                              children: [
-                                // Fake map grid
-                                CustomPaint(
-                                  size: const Size(double.infinity, 160),
-                                  painter: _FakeMapPainter(),
-                                ),
-                                Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF2563EB),
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(
-                                                0xFF2563EB,
-                                              ).withOpacity(0.4),
-                                              blurRadius: 12,
-                                              spreadRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.location_on_rounded,
-                                          color: Colors.white,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.1,
-                                              ),
-                                              blurRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Text(
-                                          'View on Map',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          child: _buildMapPreview(context),
                         ),
                         Padding(
                           padding: const EdgeInsets.all(14),
@@ -473,6 +409,178 @@ class ItemDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Items posted without a successful geocode land on 0,0 — treat that as "no
+  // location" so we don't drop a pin in the Gulf of Guinea.
+  bool get _hasCoordinates => !(item.latitude == 0 && item.longitude == 0);
+
+  void _openFullMap(BuildContext context) {
+    if (!_hasCoordinates) {
+      AppSnackBar.info(context, 'No map location available for this item.');
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ItemLocationMapScreen(item: item)),
+    );
+  }
+
+  Future<void> _shareItem(BuildContext context) async {
+    final isLost = item.status == ItemStatus.lost;
+    final statusLabel = isLost ? 'Lost' : 'Found';
+
+    final buffer = StringBuffer()
+      ..writeln('$statusLabel item on Findora: ${item.title}')
+      ..writeln()
+      ..writeln('Category: ${item.category}');
+    if (item.color != null && item.color!.isNotEmpty) {
+      buffer.writeln('Color: ${item.color}');
+    }
+    buffer
+      ..writeln('Location: ${item.location}')
+      ..writeln('Date: ${item.date}')
+      ..writeln()
+      ..writeln(item.description);
+
+    // sharePositionOrigin anchors the share sheet on iPad/macOS popovers.
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: buffer.toString(),
+        subject: '$statusLabel: ${item.title}',
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
+      ),
+    );
+  }
+
+  Widget _buildMapPreview(BuildContext context) {
+    if (!_hasCoordinates) {
+      return Container(
+        height: 160,
+        color: const Color(0xFFE2E8F0),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.location_off_rounded,
+                color: Color(0xFF94A3B8),
+                size: 28,
+              ),
+              SizedBox(height: 6),
+              Text(
+                'No map location available',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final point = LatLng(item.latitude, item.longitude);
+    final isLost = item.status == ItemStatus.lost;
+    final color = isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
+
+    return GestureDetector(
+      onTap: () => _openFullMap(context),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          children: [
+            // Non-interactive preview — taps open the full-screen map instead
+            // of panning, so it doesn't fight the page's scroll gesture.
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: point,
+                initialZoom: 15,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.findora.app',
+                  maxZoom: 19,
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: point,
+                      width: 36,
+                      height: 36,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withOpacity(0.45),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.location_on_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            // Tap-to-open hint.
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.map_outlined,
+                      size: 13,
+                      color: Color(0xFF2563EB),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'View on Map',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -789,38 +897,4 @@ class ItemDetailScreen extends StatelessWidget {
         return Icons.category_outlined;
     }
   }
-}
-
-// Fake map painter
-class _FakeMapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFCBD5E1)
-      ..strokeWidth = 1;
-
-    for (double y = 0; y < size.height; y += 30) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    for (double x = 0; x < size.width; x += 50) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 10;
-    canvas.drawLine(
-      Offset(0, size.height * 0.5),
-      Offset(size.width, size.height * 0.5),
-      roadPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.4, 0),
-      Offset(size.width * 0.4, size.height),
-      roadPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
