@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -29,20 +30,36 @@ class _MapViewScreenState extends State<MapViewScreen> {
   Worker? _itemsWatcher;
 
   final MapController _mapController = MapController();
+  final GetConnect _geoClient = GetConnect();
   static const _locationService = LocationService();
   bool _mapReady = false;
-  bool _autoFitted = false;
+  bool _initialCameraSettled = false;
+  bool _fittedToItems = false;
+  bool _resolvingMissingCoords = false;
+  bool _cameraFitScheduled = false;
   bool _locating = false;
+  final Map<String, LatLng> _resolvedPoints = {};
+  final Set<String> _unresolvedPointIds = {};
 
   @override
   void initState() {
     super.initState();
     _ctrl = Get.find<ItemController>();
+    _geoClient.httpClient.timeout = const Duration(seconds: 8);
     // Rebuild pins + stats (and fit the camera) when live items arrive.
     _itemsWatcher = ever(_ctrl.items, (_) {
       if (!mounted) return;
       setState(() {});
-      _maybeAutoFit();
+      _resolveMissingCoordinates();
+      _scheduleCameraSettle(forceFit: true);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_ctrl.items.isEmpty && !_ctrl.isLoading.value) {
+        _ctrl.fetchItems();
+      }
+      _resolveMissingCoordinates();
+      _scheduleCameraSettle(forceFit: true);
     });
   }
 
@@ -63,24 +80,138 @@ class _MapViewScreenState extends State<MapViewScreen> {
     return all.toList();
   }
 
-  // Items that carry real coordinates (skip un-geocoded 0,0 placeholders).
-  List<ItemModel> get _mappableItems => _filteredItems
-      .where((i) => !(i.latitude == 0 && i.longitude == 0))
-      .toList();
+  // Items that carry real coordinates, plus address-only items that have been
+  // resolved locally for display.
+  List<ItemModel> get _mappableItems =>
+      _filteredItems.where((i) => _pointForItem(i) != null).toList();
 
   // ── Camera ─────────────────────────────────────────────────────────────────
 
-  void _maybeAutoFit() {
-    if (_autoFitted) return;
-    final fitted = _fitToItems();
-    if (fitted) _autoFitted = true;
+  void _scheduleCameraSettle({bool forceFit = false}) {
+    if (_cameraFitScheduled) return;
+    _cameraFitScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted) return;
+      _cameraFitScheduled = false;
+      _settleInitialCamera(forceFit: forceFit);
+
+      // flutter_map can ignore camera changes if an embedded map is still
+      // receiving its final constraints. Retry once after layout settles.
+      if (!_fittedToItems && _mappableItems.isNotEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (mounted) _settleInitialCamera(forceFit: true);
+      }
+    });
+  }
+
+  Future<void> _settleInitialCamera({bool forceFit = false}) async {
+    if (!_mapReady) return;
+
+    if ((forceFit || !_fittedToItems) && _fitToItems()) {
+      _fittedToItems = true;
+      _initialCameraSettled = true;
+      return;
+    }
+
+    if (_initialCameraSettled) return;
+    _mapController.move(_defaultCenter, 12);
+    _initialCameraSettled = true;
+  }
+
+  Future<void> _resolveMissingCoordinates() async {
+    if (_resolvingMissingCoords) return;
+    final missing = _filteredItems
+        .where(
+          (item) =>
+              item.location.trim().isNotEmpty &&
+              item.latitude == 0 &&
+              item.longitude == 0 &&
+              !_resolvedPoints.containsKey(item.id) &&
+              !_unresolvedPointIds.contains(item.id),
+        )
+        .toList();
+    if (missing.isEmpty) return;
+
+    _resolvingMissingCoords = true;
+    var resolvedAny = false;
+    try {
+      for (final item in missing) {
+        _resolvedPoints[item.id] = _fallbackPointForItem(item);
+        resolvedAny = true;
+        try {
+          final point = await _geocodeItemAddress(item.location);
+          if (!mounted) return;
+          if (point != null && _isReasonableMapPoint(point)) {
+            _resolvedPoints[item.id] = point;
+          }
+        } catch (_) {
+          // Keep the stable fallback point assigned above.
+        }
+      }
+    } finally {
+      _resolvingMissingCoords = false;
+    }
+
+    if (!mounted || !resolvedAny) return;
+    setState(() {});
+    _scheduleCameraSettle(forceFit: true);
+  }
+
+  Future<LatLng?> _geocodeItemAddress(String address) async {
+    try {
+      final matches = await locationFromAddress(address);
+      if (matches.isNotEmpty) {
+        final first = matches.first;
+        return LatLng(first.latitude, first.longitude);
+      }
+    } catch (_) {
+      // Fall back to OpenStreetMap below.
+    }
+
+    try {
+      final response = await _geoClient.get(
+        'https://nominatim.openstreetmap.org/search',
+        query: {
+          'q': address,
+          'format': 'jsonv2',
+          'limit': '1',
+          'countrycodes': 'pk',
+        },
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Findora map view',
+        },
+      );
+      final body = response.body;
+      if (!response.isOk || body is! List || body.isEmpty) return null;
+
+      final first = body.first;
+      if (first is! Map) return null;
+      final lat = double.tryParse(first['lat']?.toString() ?? '');
+      final lon = double.tryParse(first['lon']?.toString() ?? '');
+      if (lat == null || lon == null) return null;
+      return LatLng(lat, lon);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  LatLng _fallbackPointForItem(ItemModel item) {
+    final seed = '${item.id}:${item.title}:${item.location}'.codeUnits
+        .fold<int>(0, (sum, unit) => sum + unit);
+    final latOffset = ((seed % 9) - 4) * 0.008;
+    final lngOffset = (((seed ~/ 9) % 9) - 4) * 0.008;
+    return LatLng(
+      _defaultCenter.latitude + latOffset,
+      _defaultCenter.longitude + lngOffset,
+    );
   }
 
   bool _fitToItems() {
     if (!_mapReady) return false;
-    final points = _mappableItems
-        .map((i) => LatLng(i.latitude, i.longitude))
-        .toList();
+    final points = _mappableItems.map(_pointForItem).nonNulls.toList();
     if (points.isEmpty) return false;
 
     if (points.length == 1) {
@@ -95,6 +226,22 @@ class _MapViewScreenState extends State<MapViewScreen> {
       );
     }
     return true;
+  }
+
+  LatLng? _pointForItem(ItemModel item) {
+    if (item.latitude != 0 || item.longitude != 0) {
+      final point = LatLng(item.latitude, item.longitude);
+      if (_isReasonableMapPoint(point)) return point;
+      return _resolvedPoints[item.id] ?? _fallbackPointForItem(item);
+    }
+    return _resolvedPoints[item.id];
+  }
+
+  bool _isReasonableMapPoint(LatLng point) {
+    return point.latitude >= 23 &&
+        point.latitude <= 38 &&
+        point.longitude >= 60 &&
+        point.longitude <= 78;
   }
 
   Future<void> _recenterOnMe() async {
@@ -174,7 +321,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
         maxZoom: 19,
         onMapReady: () {
           _mapReady = true;
-          _maybeAutoFit();
+          _mapController.move(_defaultCenter, 12);
+          _scheduleCameraSettle(forceFit: true);
         },
         onTap: (_, _) {
           if (_selectedItem != null) setState(() => _selectedItem = null);
@@ -198,78 +346,92 @@ class _MapViewScreenState extends State<MapViewScreen> {
   // cluster. Red = lost, green = found; radius is in metres so it scales with
   // zoom and overlapping circles merge into a single highlighted area.
   List<CircleMarker> _buildAreaCircles() {
-    return _mappableItems.map((item) {
-      final isLost = item.status == ItemStatus.lost;
-      final color = isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
-      return CircleMarker(
-        point: LatLng(item.latitude, item.longitude),
-        radius: 130,
-        useRadiusInMeter: true,
-        color: color.withValues(alpha: 0.15),
-        borderColor: color.withValues(alpha: 0.55),
-        borderStrokeWidth: 1.5,
-      );
-    }).toList();
+    return _mappableItems
+        .map((item) {
+          final point = _pointForItem(item);
+          if (point == null) return null;
+          final isLost = item.status == ItemStatus.lost;
+          final color = isLost
+              ? const Color(0xFFEF4444)
+              : const Color(0xFF16A34A);
+          return CircleMarker(
+            point: point,
+            radius: 130,
+            useRadiusInMeter: true,
+            color: color.withValues(alpha: 0.15),
+            borderColor: color.withValues(alpha: 0.55),
+            borderStrokeWidth: 1.5,
+          );
+        })
+        .nonNulls
+        .toList();
   }
 
   List<Marker> _buildMarkers() {
     const tail = 7.0; // height of the pointer below the badge
-    return _mappableItems.map((item) {
-      final isLost = item.status == ItemStatus.lost;
-      final color = isLost ? const Color(0xFFEF4444) : const Color(0xFF16A34A);
-      final selected = _selectedItem?.id == item.id;
-      final badgeSize = selected ? 46.0 : 38.0;
+    return _mappableItems
+        .map((item) {
+          final point = _pointForItem(item);
+          if (point == null) return null;
+          final isLost = item.status == ItemStatus.lost;
+          final color = isLost
+              ? const Color(0xFFEF4444)
+              : const Color(0xFF16A34A);
+          final selected = _selectedItem?.id == item.id;
+          final badgeSize = selected ? 46.0 : 38.0;
 
-      return Marker(
-        point: LatLng(item.latitude, item.longitude),
-        width: badgeSize,
-        height: badgeSize + tail,
-        // Anchor the pointer's tip on the coordinate so the icon sits above
-        // the highlighted area, pointing down into it.
-        alignment: Alignment.topCenter,
-        child: GestureDetector(
-          onTap: () => setState(() => _selectedItem = item),
-          child: Stack(
-            clipBehavior: Clip.none,
+          return Marker(
+            point: point,
+            width: badgeSize,
+            height: badgeSize + tail,
+            // Anchor the pointer's tip on the coordinate so the icon sits above
+            // the highlighted area, pointing down into it.
             alignment: Alignment.topCenter,
-            children: [
-              // Pointer first, so the badge draws over its top edge.
-              Positioned(
-                bottom: 0,
-                child: CustomPaint(
-                  size: const Size(14, tail + 4),
-                  painter: _PinPointerPainter(color),
-                ),
-              ),
-              Container(
-                width: badgeSize,
-                height: badgeSize,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: selected ? 3 : 2.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.45),
-                      blurRadius: selected ? 12 : 8,
-                      spreadRadius: selected ? 2 : 1,
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedItem = item),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.topCenter,
+                children: [
+                  // Pointer first, so the badge draws over its top edge.
+                  Positioned(
+                    bottom: 0,
+                    child: CustomPaint(
+                      size: const Size(14, tail + 4),
+                      painter: _PinPointerPainter(color),
                     ),
-                  ],
-                ),
-                child: Icon(
-                  _categoryIcon(item.category),
-                  color: Colors.white,
-                  size: selected ? 22 : 18,
-                ),
+                  ),
+                  Container(
+                    width: badgeSize,
+                    height: badgeSize,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: selected ? 3 : 2.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.45),
+                          blurRadius: selected ? 12 : 8,
+                          spreadRadius: selected ? 2 : 1,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _categoryIcon(item.category),
+                      color: Colors.white,
+                      size: selected ? 22 : 18,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      );
-    }).toList();
+            ),
+          );
+        })
+        .nonNulls
+        .toList();
   }
 
   Widget _buildAttribution() {
@@ -399,7 +561,15 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 _filter = f;
                 _selectedItem = null;
               });
-              _fitToItems();
+              _resolveMissingCoordinates().then((_) {
+                if (!mounted) return;
+                _fittedToItems = false;
+                if (_mappableItems.isEmpty) {
+                  _mapController.move(_defaultCenter, 12);
+                } else {
+                  _scheduleCameraSettle(forceFit: true);
+                }
+              });
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),

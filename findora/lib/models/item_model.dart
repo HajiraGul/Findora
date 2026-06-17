@@ -1,5 +1,10 @@
 enum ItemStatus { lost, found }
 
+double _parseCoordinate(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0.0;
+}
+
 class ItemModel {
   final String id;
   final String title;
@@ -44,13 +49,21 @@ class ItemModel {
       description: json['description']?.toString() ?? '',
       category: json['category']?.toString() ?? 'Other',
       status: json['status'] == 'found' ? ItemStatus.found : ItemStatus.lost,
-      location: json['location']?.toString() ?? '',
+      location: json['location'] is Map
+          ? (json['location']['address']?.toString() ?? '')
+          : json['location']?.toString() ?? '',
       postedBy: json['postedBy']?.toString() ?? 'Findora User',
       postedById: json['postedById']?.toString(),
       timeAgo: json['timeAgo']?.toString() ?? '',
       imageUrl: json['imageUrl']?.toString(),
-      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      latitude: _parseCoordinate(
+        json['latitude'] ??
+            (json['location'] is Map ? json['location']['latitude'] : null),
+      ),
+      longitude: _parseCoordinate(
+        json['longitude'] ??
+            (json['location'] is Map ? json['location']['longitude'] : null),
+      ),
       color: json['color']?.toString(),
       date: json['date']?.toString() ?? '',
       isResolved: json['isResolved'] as bool? ?? false,
