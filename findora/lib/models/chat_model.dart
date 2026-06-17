@@ -83,6 +83,9 @@ class ChatMessage {
   final String senderId;
   final String senderName;
   final String text;
+  /// Hosted URL of an image shared in this message, or null for text-only
+  /// messages. A message may carry text, an image, or both.
+  final String? imageUrl;
   final DateTime sentAt;
 
   const ChatMessage({
@@ -90,15 +93,20 @@ class ChatMessage {
     required this.senderId,
     required this.senderName,
     required this.text,
+    this.imageUrl,
     required this.sentAt,
   });
 
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final image = json['imageUrl']?.toString();
     return ChatMessage(
       id: json['id']?.toString() ?? '',
       senderId: json['senderId']?.toString() ?? '',
       senderName: json['senderName']?.toString() ?? '',
       text: json['text']?.toString() ?? '',
+      imageUrl: (image != null && image.isNotEmpty) ? image : null,
       sentAt: ChatConversation._fromMillis(json['sentAt']) ?? DateTime.now(),
     );
   }

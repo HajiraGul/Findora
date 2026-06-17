@@ -45,6 +45,17 @@ class ChatApiService extends GetConnect {
         headers: _auth(token));
   }
 
+  /// Uploads a chat image (base64 data URL) and returns its hosted URL in the
+  /// response body as `url`. The client then writes the message referencing it.
+  Future<Response<dynamic>> uploadImage({
+    required String token,
+    required String chatId,
+    required String dataUrl,
+  }) {
+    return post('/chats/$chatId/image', {'image': dataUrl},
+        headers: _auth(token));
+  }
+
   /// Ensures the chat for an approved claim exists (creating it if needed) and
   /// returns it. Callable by the claimant or item poster.
   Future<Response<dynamic>> openChatForClaim({

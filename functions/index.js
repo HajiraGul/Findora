@@ -20,10 +20,19 @@ exports.onNewChatMessage = onDocumentCreated(
     if (!chatSnap.exists) return;
     const chat = chatSnap.data();
 
+    // Image-only messages carry no text, so fall back to a short label for the
+    // conversation-list preview and the push notification body.
+    const preview =
+      message.text && message.text.trim()
+        ? message.text
+        : message.imageUrl
+          ? '📷 Photo'
+          : '';
+
     const now = Date.now();
     await chatRef.update({
       lastMessage: {
-        text: message.text,
+        text: preview,
         senderId: message.senderId,
         sentAt: message.sentAt || now,
       },
@@ -43,7 +52,7 @@ exports.onNewChatMessage = onDocumentCreated(
       tokens,
       notification: {
         title: message.senderName || chat.itemTitle || 'New message',
-        body: message.text,
+        body: preview,
       },
       data: { type: 'chat', chatId },
       android: { priority: 'high' },

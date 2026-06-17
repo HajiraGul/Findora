@@ -1,5 +1,9 @@
 const Claim = require('../models/claim.model');
 const { getDb } = require('../config/firebase');
+const { uploadChatImage } = require('./image.service');
+
+// Conversation-list preview shown when a message carries only an image.
+const IMAGE_PREVIEW = '📷 Photo';
 
 const CHATS_COLLECTION = 'chats';
 const MESSAGES_COLLECTION = 'messages';
@@ -155,7 +159,7 @@ async function listMessages(chatId, user, afterMs) {
   };
 }
 
-async function sendMessage(chatId, user, text) {
+async function sendMessage(chatId, user, text, imageUrl) {
   const chat = await getChatById(chatId, user);
 
   if (!isParticipant(chat, user)) {
@@ -175,17 +179,48 @@ async function sendMessage(chatId, user, text) {
   const message = {
     senderId: user._id.toString(),
     senderName: user.fullName,
-    text,
+    text: text || '',
     sentAt: now,
   };
+  if (imageUrl) message.imageUrl = imageUrl;
 
   const messageRef = await chatRef.collection(MESSAGES_COLLECTION).add(message);
   await chatRef.update({
-    lastMessage: { text, senderId: message.senderId, sentAt: now },
+    lastMessage: {
+      text: message.text || (imageUrl ? IMAGE_PREVIEW : ''),
+      senderId: message.senderId,
+      sentAt: now,
+    },
     updatedAt: now,
   });
 
   return { id: messageRef.id, ...message };
+}
+
+// Uploads an image a participant wants to share, returning its hosted URL.
+// Enforces the same participant + enabled-chat gate as sending a message, so a
+// disabled or foreign chat can't be used to push images into Cloudinary.
+async function uploadMessageImage(chatId, user, image) {
+  const chat = await getChatById(chatId, user);
+
+  if (!isParticipant(chat, user)) {
+    const error = new Error('Only chat participants can send images');
+    error.statusCode = 403;
+    throw error;
+  }
+  if (!chat.enabled) {
+    const error = new Error('This chat has been disabled by the admin');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const url = await uploadChatImage(image);
+  if (!url) {
+    const error = new Error('Image upload failed');
+    error.statusCode = 502;
+    throw error;
+  }
+  return url;
 }
 
 async function listAllChats() {
@@ -245,6 +280,7 @@ module.exports = {
   getChatById,
   listMessages,
   sendMessage,
+  uploadMessageImage,
   listAllChats,
   setChatEnabled,
   disableChatsForItem,

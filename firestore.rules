@@ -37,13 +37,32 @@ service cloud.firestore {
         // Clients may only append messages, only while the chat is enabled, and
         // only with the expected shape. The Cloud Function (Admin SDK) updates
         // lastMessage on the parent doc, so clients never touch it.
+        //
+        // A message must carry text, an image, or both. `imageUrl` is optional;
+        // when present it must be a non-empty https URL (the upload endpoint
+        // hosts the file on Cloudinary, so no base64 is ever stored here).
         allow create: if signedIn()
           && chatEnabled(chatId)
           && request.resource.data.keys().hasOnly(
-               ['senderId', 'senderName', 'text', 'sentAt'])
+               ['senderId', 'senderName', 'text', 'sentAt', 'imageUrl'])
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 2000;
+          && request.resource.data.text.size() <= 2000
+          && (
+               request.resource.data.text.size() > 0
+               || (
+                    request.resource.data.keys().hasAny(['imageUrl'])
+                    && request.resource.data.imageUrl is string
+                    && request.resource.data.imageUrl.size() > 0
+                  )
+             )
+          && (
+               !request.resource.data.keys().hasAny(['imageUrl'])
+               || (
+                    request.resource.data.imageUrl is string
+                    && request.resource.data.imageUrl.matches('https://.*')
+                    && request.resource.data.imageUrl.size() <= 1000
+                  )
+             );
 
         allow update, delete: if false;
       }

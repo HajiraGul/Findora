@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../controllers/chat_controller.dart';
 import '../controllers/item_controller.dart';
 import '../models/chat_model.dart';
+import '../utils/picked_image_data.dart';
 
 class ChatScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -17,6 +19,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final ImagePicker _imagePicker = ImagePicker();
   late final ChatController _chatController;
   int _renderedMessageCount = 0;
 
@@ -52,6 +55,70 @@ class _ChatScreenState extends State<ChatScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  // Lets the user attach a photo to the conversation. Sending an image is a
+  // separate flow from the text field, so typing a message is never affected.
+  void _showImageSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: Color(0xff0A5EB0)),
+              title: const Text('Choose from gallery'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAndSendImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined,
+                  color: Color(0xff0A5EB0)),
+              title: const Text('Take a photo'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAndSendImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndSendImage(ImageSource source) async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1200,
+      );
+      if (file == null) return;
+
+      final picked = await PickedImageData.fromXFile(file);
+      final error = await _chatController.sendImage(picked);
+      if (error != null && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+      }
+    } on Exception catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().toLowerCase();
+      final text = msg.contains('permission') || msg.contains('denied')
+          ? 'Permission denied. Please allow access in Settings.'
+          : 'Unable to pick image';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(text)));
     }
   }
 
@@ -205,6 +272,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   final msg = msgs[index];
                   return _messageBubble(
                     text: msg.text,
+                    imageUrl: msg.imageUrl,
                     isMe: msg.senderId == _chatController.currentUserId,
                     time: msg.formattedTime,
                   );
@@ -258,9 +326,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _messageBubble({
     required String text,
+    String? imageUrl,
     required bool isMe,
     required String time,
   }) {
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    final hasText = text.trim().isNotEmpty;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -285,12 +357,15 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: isMe ? Colors.white : const Color(0xff17324D),
+            if (hasImage) _bubbleImage(imageUrl),
+            if (hasImage && hasText) const SizedBox(height: 8),
+            if (hasText)
+              Text(
+                text,
+                style: TextStyle(
+                  color: isMe ? Colors.white : const Color(0xff17324D),
+                ),
               ),
-            ),
             const SizedBox(height: 5),
             Text(
               time,
@@ -305,6 +380,73 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _bubbleImage(String imageUrl) {
+    return GestureDetector(
+      onTap: () => _openImageViewer(imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: 220,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: 220,
+              height: 160,
+              alignment: Alignment.center,
+              color: Colors.black12,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: 220,
+            height: 120,
+            alignment: Alignment.center,
+            color: Colors.black12,
+            child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Full-screen, pinch-to-zoom viewer for a tapped chat image.
+  void _openImageViewer(String imageUrl) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (dialogContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white54,
+                    size: 48,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _messageInput() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
@@ -314,6 +456,24 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
+          Obx(() {
+            final uploading = _chatController.isUploadingImage.value;
+            return IconButton(
+              onPressed: uploading ? null : _showImageSourceSheet,
+              tooltip: 'Send a photo',
+              icon: uploading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xff0A5EB0),
+                      ),
+                    )
+                  : const Icon(Icons.add_photo_alternate_outlined,
+                      color: Color(0xff0A5EB0)),
+            );
+          }),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 18),

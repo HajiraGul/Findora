@@ -6,6 +6,7 @@ import '../controllers/auth_controller.dart';
 import '../models/chat_model.dart';
 import '../services/chat_api_service.dart';
 import '../services/firestore_chat_service.dart';
+import '../utils/picked_image_data.dart';
 
 class ChatController extends GetxController {
   final ChatApiService _api;
@@ -25,6 +26,7 @@ class ChatController extends GetxController {
   final messages = <ChatMessage>[].obs;
   final isLoadingMessages = false.obs;
   final isSending = false.obs;
+  final isUploadingImage = false.obs;
 
   final adminChats = <ChatConversation>[].obs;
   final isLoadingAdminChats = false.obs;
@@ -118,11 +120,13 @@ class ChatController extends GetxController {
     messages.clear();
   }
 
-  Future<String?> sendMessage(String text) async {
+  Future<String?> sendMessage(String text, {String? imageUrl}) async {
     final chat = activeChat.value;
     final trimmed = text.trim();
     final uid = currentUserId;
-    if (chat == null || trimmed.isEmpty || uid.isEmpty) return null;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    if (chat == null || uid.isEmpty) return null;
+    if (trimmed.isEmpty && !hasImage) return null;
     if (!(activeChat.value?.enabled ?? false)) {
       return 'This chat has been disabled by the admin';
     }
@@ -134,6 +138,7 @@ class ChatController extends GetxController {
         senderId: uid,
         senderName: _currentUserName,
         text: trimmed,
+        imageUrl: imageUrl,
       );
       // The new message arrives through the live messages stream.
       return null;
@@ -155,6 +160,46 @@ class ChatController extends GetxController {
       return 'Unable to send: $e';
     } finally {
       isSending.value = false;
+    }
+  }
+
+  /// Uploads a picked image to the backend (Cloudinary) and then appends an
+  /// image message to the conversation. Text messages are unaffected — this is
+  /// a separate path that only runs when the user attaches a photo.
+  Future<String?> sendImage(PickedImageData picked) async {
+    final chat = activeChat.value;
+    final uid = currentUserId;
+    if (chat == null || uid.isEmpty) return null;
+    if (!(activeChat.value?.enabled ?? false)) {
+      return 'This chat has been disabled by the admin';
+    }
+    if (_token.isEmpty) return 'Please sign in again to send photos.';
+
+    try {
+      isUploadingImage.value = true;
+      final response = await _api.uploadImage(
+        token: _token,
+        chatId: chat.id,
+        dataUrl: picked.dataUrl,
+      );
+
+      if (!response.isOk) {
+        return extractError(response.body);
+      }
+      final url = response.body is Map
+          ? (response.body as Map)['url']?.toString() ?? ''
+          : '';
+      if (url.isEmpty) {
+        return 'Image upload failed. Please try again.';
+      }
+
+      return sendMessage('', imageUrl: url);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[chat] sendImage failed: $e');
+      return 'Unable to send photo: $e';
+    } finally {
+      isUploadingImage.value = false;
     }
   }
 

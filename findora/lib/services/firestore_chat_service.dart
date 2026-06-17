@@ -64,14 +64,19 @@ class FirestoreChatService {
     required String senderId,
     required String senderName,
     required String text,
+    String? imageUrl,
   }) async {
     final db = _db;
     if (db == null) throw StateError('Firebase is not configured');
-    await db.collection('chats').doc(chatId).collection('messages').add({
+    final data = <String, dynamic>{
       'senderId': senderId,
       'senderName': senderName,
       'text': text,
       'sentAt': DateTime.now().millisecondsSinceEpoch,
-    });
+    };
+    // Only attach imageUrl when there is one — the security rules use hasOnly(),
+    // so a stray null key would reject the write for plain text messages.
+    if (imageUrl != null && imageUrl.isNotEmpty) data['imageUrl'] = imageUrl;
+    await db.collection('chats').doc(chatId).collection('messages').add(data);
   }
 }

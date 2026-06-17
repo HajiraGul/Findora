@@ -48,6 +48,14 @@ function uploadClaimImages(images = []) {
   return uploadImages(images, 'findora/claims');
 }
 
+// Uploads a single image shared inside a chat conversation and returns its
+// hosted URL. Chat photos live in their own Cloudinary folder so they stay
+// separate from item/claim media.
+async function uploadChatImage(image) {
+  const { urls } = await uploadImages(image ? [image] : [], 'findora/chat');
+  return urls[0] || null;
+}
+
 function publicIdFromCloudinaryUrl(url) {
   try {
     const parsed = new URL(url);
@@ -66,4 +74,5 @@ module.exports = {
   uploadImages,
   uploadItemImages,
   uploadClaimImages,
+  uploadChatImage,
 };

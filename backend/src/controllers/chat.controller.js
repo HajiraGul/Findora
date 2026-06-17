@@ -1,5 +1,6 @@
 const {
   validateMessagePayload,
+  validateChatImagePayload,
   validateChatStatusPayload,
 } = require('../utils/chat.validators');
 const {
@@ -9,6 +10,7 @@ const {
   getChatById,
   listMessages,
   sendMessage,
+  uploadMessageImage,
   listAllChats,
   setChatEnabled,
 } = require('../services/chat.service');
@@ -55,12 +57,37 @@ async function send(req, res, next) {
       return res.status(400).json({ message: 'Validation failed', errors });
     }
 
-    const message = await sendMessage(req.params.chatId, req.user, data.text);
+    const message = await sendMessage(
+      req.params.chatId,
+      req.user,
+      data.text,
+      data.imageUrl
+    );
 
     return res.status(201).json({
       message: 'Message sent',
       chatMessage: message,
     });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// Uploads an image to Cloudinary for use in a chat and returns its hosted URL.
+// The client then appends a message referencing that URL (directly to Firestore
+// in the app, or via POST /:chatId/messages with imageUrl), keeping the message
+// document tiny instead of carrying base64 data.
+async function uploadImage(req, res, next) {
+  try {
+    const { errors, data } = validateChatImagePayload(req.body);
+
+    if (errors.length > 0) {
+      return res.status(400).json({ message: 'Validation failed', errors });
+    }
+
+    const url = await uploadMessageImage(req.params.chatId, req.user, data.image);
+
+    return res.status(201).json({ message: 'Image uploaded', url });
   } catch (error) {
     return next(error);
   }
@@ -123,6 +150,7 @@ module.exports = {
   show,
   messages,
   send,
+  uploadImage,
   openForClaim,
   adminIndex,
   adminSetStatus,
