@@ -47,7 +47,7 @@ async function ensureChatForClaim(claimId) {
 
   if (snapshot.exists) {
     if (!snapshot.data().enabled) {
-      await ref.update({ enabled: true, updatedAt: now });
+      await ref.update({ enabled: true, closedReason: null, updatedAt: now });
     }
     return chatFromDoc(await ref.get());
   }
@@ -63,6 +63,7 @@ async function ensureChatForClaim(claimId) {
     claimantName: claim.claimant.fullName,
     participantIds: [poster._id.toString(), claim.claimant._id.toString()],
     enabled: true,
+    closedReason: null,
     lastMessage: null,
     createdAt: now,
     updatedAt: now,
@@ -208,8 +209,33 @@ async function setChatEnabled(chatId, enabled) {
     throw error;
   }
 
-  await ref.update({ enabled, updatedAt: Date.now() });
+  await ref.update({
+    enabled,
+    closedReason: enabled ? null : 'admin',
+    updatedAt: Date.now(),
+  });
   return chatFromDoc(await ref.get());
+}
+
+// Closes every chat tied to an item once its owner marks it resolved. History
+// stays readable; only sending is blocked (see sendMessage). closedReason lets
+// the app explain the close was the handover finishing, not an admin action.
+async function disableChatsForItem(itemId) {
+  const db = getDb();
+  const snapshot = await db
+    .collection(CHATS_COLLECTION)
+    .where('itemId', '==', itemId.toString())
+    .get();
+
+  const now = Date.now();
+  const closures = snapshot.docs
+    .filter((doc) => doc.data().enabled)
+    .map((doc) =>
+      doc.ref.update({ enabled: false, closedReason: 'resolved', updatedAt: now })
+    );
+
+  await Promise.all(closures);
+  return closures.length;
 }
 
 module.exports = {
@@ -221,4 +247,5 @@ module.exports = {
   sendMessage,
   listAllChats,
   setChatEnabled,
+  disableChatsForItem,
 };

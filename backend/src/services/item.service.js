@@ -4,6 +4,7 @@ const Claim = require('../models/claim.model');
 const Item = require('../models/item.model');
 const { uploadItemImages } = require('./image.service');
 const { notifyMatchesForNewItem } = require('./notification.service');
+const { disableChatsForItem } = require('./chat.service');
 
 function buildItemQuery(filters = {}) {
   const query = {};
@@ -145,6 +146,27 @@ async function resolveItem(itemId, user) {
   item.resolvedAt = new Date();
   await item.save();
   await item.populate('postedBy', 'fullName');
+
+  // The handover is done: any other claims still waiting are moot, so close
+  // them out, and lock the conversations so no further messages can be sent.
+  await Claim.updateMany(
+    { item: item._id, status: 'pending' },
+    {
+      $set: {
+        status: 'rejected',
+        adminNote: 'Item was marked as resolved by the owner',
+        reviewedAt: new Date(),
+      },
+    }
+  );
+
+  // A failed Firestore write must not undo the resolve — mirror how claim
+  // approval treats chat writes as best-effort.
+  try {
+    await disableChatsForItem(item._id.toString());
+  } catch (chatError) {
+    console.error(`Chat close skipped for item ${item._id}: ${chatError.message}`);
+  }
 
   return item.toSafeObject();
 }

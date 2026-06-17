@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/chat_controller.dart';
+import '../controllers/item_controller.dart';
 import '../models/chat_model.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -52,6 +53,47 @@ class _ChatScreenState extends State<ChatScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(error)));
     }
+  }
+
+  // Only the item's poster confirms the handover. Resolving the item closes
+  // every chat tied to it on the backend; the live chat stream then flips this
+  // screen to the closed banner, so we don't disable anything by hand here.
+  Future<void> _markAsClaimed() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Mark as claimed?'),
+        content: Text(
+          'This marks "${widget.conversation.itemTitle}" as resolved and closes '
+          'this conversation. You can still read the messages afterwards.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Mark as claimed'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final ok = await Get.find<ItemController>()
+        .resolveItem(widget.conversation.itemId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Marked as claimed. This chat is now closed.'
+              : 'Could not update the post. Please try again.',
+        ),
+      ),
+    );
   }
 
   void _scrollToBottomAfterBuild() {
@@ -113,6 +155,23 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          Obx(() {
+            final chat = _chatController.activeChat.value;
+            final isPoster =
+                widget.conversation.posterId == _chatController.currentUserId;
+            // Show the handover action only to the poster, and only while the
+            // conversation is still open.
+            if (!isPoster || chat == null || !chat.enabled) {
+              return const SizedBox.shrink();
+            }
+            return IconButton(
+              tooltip: 'Mark as claimed',
+              icon: const Icon(Icons.task_alt_rounded, color: Color(0xff0A5EB0)),
+              onPressed: _markAsClaimed,
+            );
+          }),
+        ],
       ),
       body: Column(
         children: [
@@ -156,14 +215,21 @@ class _ChatScreenState extends State<ChatScreen> {
           Obx(() {
             final chat = _chatController.activeChat.value;
             final disabled = chat != null && !chat.enabled;
-            return disabled ? _disabledBanner() : _messageInput();
+            return disabled
+                ? _disabledBanner(chat.closedReason == 'resolved')
+                : _messageInput();
           }),
         ],
       ),
     );
   }
 
-  Widget _disabledBanner() {
+  Widget _disabledBanner(bool resolved) {
+    final color = resolved ? const Color(0xff0A5EB0) : Colors.red;
+    final icon = resolved ? Icons.task_alt_rounded : Icons.lock_outline_rounded;
+    final text = resolved
+        ? 'This item has been marked as claimed. The chat is now closed.'
+        : 'This chat has been disabled by the admin.';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 26),
@@ -171,16 +237,16 @@ class _ChatScreenState extends State<ChatScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.lock_outline_rounded, color: Colors.red, size: 18),
-          SizedBox(width: 8),
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
-              'This chat has been disabled by the admin.',
+              text,
               style: TextStyle(
-                color: Colors.red,
+                color: color,
                 fontWeight: FontWeight.w600,
               ),
             ),

@@ -8,6 +8,9 @@ class ChatConversation {
   final String claimantId;
   final String claimantName;
   final bool enabled;
+  /// Why a disabled chat was closed: 'resolved' (owner marked the item claimed)
+  /// or 'admin' (moderator action). Null while the chat is still open.
+  final String? closedReason;
   final String? lastMessageText;
   final String? lastMessageSenderId;
   final DateTime? lastMessageAt;
@@ -23,6 +26,7 @@ class ChatConversation {
     required this.claimantId,
     required this.claimantName,
     required this.enabled,
+    this.closedReason,
     this.lastMessageText,
     this.lastMessageSenderId,
     this.lastMessageAt,
@@ -44,6 +48,7 @@ class ChatConversation {
       claimantId: json['claimantId']?.toString() ?? '',
       claimantName: json['claimantName']?.toString() ?? 'Claimant',
       enabled: json['enabled'] == true,
+      closedReason: json['closedReason']?.toString(),
       lastMessageText: lastMessage?['text']?.toString(),
       lastMessageSenderId: lastMessage?['senderId']?.toString(),
       lastMessageAt: _fromMillis(lastMessage?['sentAt']),
