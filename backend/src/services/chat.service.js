@@ -21,9 +21,13 @@ function isParticipant(chat, user) {
   return chat.participantIds.includes(user._id.toString());
 }
 
-// Creates (or re-enables) the chat for an approved claim. The chat document id
-// is the claim id, so one approved claim maps to exactly one conversation
-// between the claimant and the user who posted the item.
+// Creates the chat for an approved claim if it does not already exist. The chat
+// document id is the claim id, so one approved claim maps to exactly one
+// conversation between the claimant and the user who posted the item.
+//
+// Important: an existing disabled chat must stay disabled. Opening an approved
+// claim is allowed to self-heal a missing chat document, but it must not undo an
+// admin/resolution close.
 async function ensureChatForClaim(claimId) {
   const claim = await Claim.findById(claimId)
     .populate({
@@ -50,10 +54,7 @@ async function ensureChatForClaim(claimId) {
   const now = Date.now();
 
   if (snapshot.exists) {
-    if (!snapshot.data().enabled) {
-      await ref.update({ enabled: true, closedReason: null, updatedAt: now });
-    }
-    return chatFromDoc(await ref.get());
+    return chatFromDoc(snapshot);
   }
 
   const poster = claim.item.postedBy;

@@ -137,7 +137,9 @@ async function adminUnlockForClaim(req, res, next) {
     const chat = await ensureChatForClaim(req.params.claimId);
 
     return res.status(200).json({
-      message: 'Chat unlocked between claimant and item poster',
+      message: chat.enabled
+        ? 'Chat ready between claimant and item poster'
+        : 'Chat exists but remains disabled',
       chat,
     });
   } catch (error) {
