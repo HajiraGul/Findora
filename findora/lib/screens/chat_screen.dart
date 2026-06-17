@@ -23,6 +23,10 @@ class _ChatScreenState extends State<ChatScreen> {
   late final ChatController _chatController;
   int _renderedMessageCount = 0;
 
+  // Fixed, cropped thumbnail size for images in the thread, so tall/portrait
+  // photos don't stretch the bubble. Tap opens the full image.
+  static const double _imageBubbleSize = 220;
+
   @override
   void initState() {
     super.initState();
@@ -244,13 +248,16 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: Obx(() {
+              final msgs = _chatController.messages;
+              final pending = _chatController.pendingImages;
+
               if (_chatController.isLoadingMessages.value &&
-                  _chatController.messages.isEmpty) {
+                  msgs.isEmpty &&
+                  pending.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final msgs = _chatController.messages;
-              if (msgs.isEmpty) {
+              if (msgs.isEmpty && pending.isEmpty) {
                 return const Center(
                   child: Text(
                     'Say hello — this chat was approved by the admin.',
@@ -259,23 +266,30 @@ class _ChatScreenState extends State<ChatScreen> {
                 );
               }
 
-              if (msgs.length != _renderedMessageCount) {
-                _renderedMessageCount = msgs.length;
+              final total = msgs.length + pending.length;
+              if (total != _renderedMessageCount) {
+                _renderedMessageCount = total;
                 _scrollToBottomAfterBuild();
               }
 
               return ListView.builder(
                 controller: scrollController,
                 padding: const EdgeInsets.all(18),
-                itemCount: msgs.length,
+                itemCount: total,
                 itemBuilder: (context, index) {
-                  final msg = msgs[index];
-                  return _messageBubble(
-                    text: msg.text,
-                    imageUrl: msg.imageUrl,
-                    isMe: msg.senderId == _chatController.currentUserId,
-                    time: msg.formattedTime,
-                  );
+                  // Real messages first, then any still-uploading images, which
+                  // are always the most recent items in the thread.
+                  if (index < msgs.length) {
+                    final msg = msgs[index];
+                    return _messageBubble(
+                      text: msg.text,
+                      imageUrl: msg.imageUrl,
+                      isMe: msg.senderId == _chatController.currentUserId,
+                      time: msg.formattedTime,
+                    );
+                  }
+                  final p = pending[index - msgs.length];
+                  return _pendingImageBubble(p.image.imageProvider);
                 },
               );
             }),
@@ -332,12 +346,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }) {
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
     final hasText = text.trim().isNotEmpty;
+    // Image-only bubbles get a thin frame so the photo fills the bubble.
+    final imageOnly = hasImage && !hasText;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: imageOnly
+            ? const EdgeInsets.all(6)
+            : const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         constraints: const BoxConstraints(maxWidth: 280),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -388,23 +406,66 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Image.network(
           imageUrl,
           fit: BoxFit.cover,
-          width: 220,
+          width: _imageBubbleSize,
+          height: _imageBubbleSize,
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return Container(
-              width: 220,
-              height: 160,
+              width: _imageBubbleSize,
+              height: _imageBubbleSize,
               alignment: Alignment.center,
               color: Colors.black12,
               child: const CircularProgressIndicator(strokeWidth: 2),
             );
           },
           errorBuilder: (context, error, stackTrace) => Container(
-            width: 220,
-            height: 120,
+            width: _imageBubbleSize,
+            height: _imageBubbleSize,
             alignment: Alignment.center,
             color: Colors.black12,
             child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Optimistic bubble for an image that is still uploading: the local photo at
+  // the same fixed size, dimmed with a spinner on top.
+  Widget _pendingImageBubble(ImageProvider provider) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(maxWidth: 280),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xff0A84FF), Color(0xff0066D6)],
+          ),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Image(
+                image: provider,
+                width: _imageBubbleSize,
+                height: _imageBubbleSize,
+                fit: BoxFit.cover,
+              ),
+              Container(
+                width: _imageBubbleSize,
+                height: _imageBubbleSize,
+                color: Colors.black38,
+              ),
+              const CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2.5,
+              ),
+            ],
           ),
         ),
       ),

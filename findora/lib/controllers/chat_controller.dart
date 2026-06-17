@@ -8,6 +8,15 @@ import '../services/chat_api_service.dart';
 import '../services/firestore_chat_service.dart';
 import '../utils/picked_image_data.dart';
 
+/// An image the user just picked that is still uploading. Rendered optimistically
+/// in the conversation (with a loader) until the real message arrives over the
+/// live Firestore stream.
+class PendingImage {
+  final String id;
+  final PickedImageData image;
+  const PendingImage({required this.id, required this.image});
+}
+
 class ChatController extends GetxController {
   final ChatApiService _api;
   final FirestoreChatService _firestore;
@@ -27,6 +36,9 @@ class ChatController extends GetxController {
   final isLoadingMessages = false.obs;
   final isSending = false.obs;
   final isUploadingImage = false.obs;
+  // Images still uploading, shown optimistically at the end of the thread.
+  final pendingImages = <PendingImage>[].obs;
+  int _pendingSeq = 0;
 
   final adminChats = <ChatConversation>[].obs;
   final isLoadingAdminChats = false.obs;
@@ -93,6 +105,7 @@ class ChatController extends GetxController {
     _activeChatSub?.cancel();
     activeChat.value = chat;
     messages.clear();
+    pendingImages.clear();
     isLoadingMessages.value = true;
 
     _messagesSub = _firestore.watchMessages(chat.id).listen(
@@ -118,6 +131,7 @@ class ChatController extends GetxController {
     _activeChatSub = null;
     activeChat.value = null;
     messages.clear();
+    pendingImages.clear();
   }
 
   Future<String?> sendMessage(String text, {String? imageUrl}) async {
@@ -175,6 +189,11 @@ class ChatController extends GetxController {
     }
     if (_token.isEmpty) return 'Please sign in again to send photos.';
 
+    // Show the image right away with a loader; it's removed once the real
+    // message lands (or the upload fails).
+    final pending = PendingImage(id: 'pending_${_pendingSeq++}', image: picked);
+    pendingImages.add(pending);
+
     try {
       isUploadingImage.value = true;
       final response = await _api.uploadImage(
@@ -200,6 +219,7 @@ class ChatController extends GetxController {
       return 'Unable to send photo: $e';
     } finally {
       isUploadingImage.value = false;
+      pendingImages.remove(pending);
     }
   }
 
