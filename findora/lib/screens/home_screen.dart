@@ -264,29 +264,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              // ── Right: notification bell + messages ────────────────
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _headerBell(),
-                  const SizedBox(width: 6),
-                  _headerIconButton(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    onTap: () {
-                      if (widget.isGuest) {
-                        _showGuestBlock('view your messages');
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MessagesScreen(),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
+              // ── Right: notification bell ────────────────────────────
+              _headerBell(),
             ],
           ),
         ),
@@ -363,25 +342,6 @@ class _HomeScreenState extends State<HomeScreen>
               }),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _headerIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
-        ),
-        child: Icon(icon, color: Colors.white, size: 17),
       ),
     );
   }
