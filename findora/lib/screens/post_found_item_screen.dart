@@ -21,6 +21,7 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
   final _contactController = TextEditingController();
 
   String? _selectedCategory;
+  String? _selectedColor;
   bool _isLoading = false;
   String? _pickedLocation;
   double? _pickedLat;
@@ -38,6 +39,17 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
     ('Documents', Icons.badge_outlined, Color(0xFF2563EB)),
     ('Clothing', Icons.checkroom_outlined, Color(0xFFDB2777)),
     ('Other', Icons.category_outlined, Color(0xFF64748B)),
+  ];
+  static const _colors = [
+    ('Black', Color(0xFF111827)),
+    ('White', Color(0xFFFFFFFF)),
+    ('Blue', Color(0xFF2563EB)),
+    ('Red', Color(0xFFEF4444)),
+    ('Brown', Color(0xFF92400E)),
+    ('Silver', Color(0xFFCBD5E1)),
+    ('Yellow', Color(0xFFF59E0B)),
+    ('Green', Color(0xFF16A34A)),
+    ('Other', Color(0xFFA78BFA)),
   ];
 
   static const _handoverOptions = [
@@ -91,7 +103,10 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
       if (msg.contains('permission') || msg.contains('denied')) {
-        _showSnackBar('Permission denied. Please allow access in Settings.', isError: true);
+        _showSnackBar(
+          'Permission denied. Please allow access in Settings.',
+          isError: true,
+        );
       } else {
         _showSnackBar('Unable to pick image', isError: true);
       }
@@ -149,6 +164,10 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
       _showSnackBar('Please select a category', isError: true);
       return;
     }
+    if (_selectedColor == null) {
+      _showSnackBar('Please select the item color', isError: true);
+      return;
+    }
     if (_pickedLocation == null) {
       _showSnackBar('Please set where you found it', isError: true);
       return;
@@ -162,6 +181,7 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
         'description': _descController.text.trim(),
         'category': _selectedCategory,
         'status': 'found',
+        'color': _selectedColor,
         'location': {
           'address': _pickedLocation,
           if (_pickedLat != null) 'latitude': _pickedLat,
@@ -346,6 +366,8 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
                     _buildTitleField(),
                     const SizedBox(height: 16),
                     _buildCategoryPicker(),
+                    const SizedBox(height: 16),
+                    _buildColorPicker(),
                     const SizedBox(height: 16),
                     _buildDescriptionField(),
 
@@ -616,6 +638,87 @@ class _PostFoundItemScreenState extends State<PostFoundItemScreen> {
           return null;
         },
       ),
+    );
+  }
+
+  Widget _buildColorPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 2, bottom: 10),
+          child: Text(
+            'Color',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF374151),
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _colors.map((entry) {
+            final name = entry.$1;
+            final color = entry.$2;
+            final isSelected = _selectedColor == name;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedColor = name),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFF0FDF4) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFE2E8F0),
+                    width: isSelected ? 1.5 : 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: isSelected
+                            ? const Color(0xFF059669)
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

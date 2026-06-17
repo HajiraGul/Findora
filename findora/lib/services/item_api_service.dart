@@ -11,24 +11,27 @@ class ItemApiService extends GetConnect {
     super.onInit();
   }
 
-  Map<String, String> _auth(String token) => {
-        'Authorization': 'Bearer $token',
-      };
+  Map<String, String> _auth(String token) => {'Authorization': 'Bearer $token'};
 
   Future<Response<dynamic>> getItems({
     String? category,
     String? status,
     String? q,
+    String? color,
+    String? fromDate,
+    String? toDate,
     int page = 1,
-    int limit = 20,
+    int limit = 50,
   }) {
-    final query = <String, String>{
-      'page': '$page',
-      'limit': '$limit',
-    };
+    final query = <String, String>{'page': '$page', 'limit': '$limit'};
     if (category != null && category != 'All') query['category'] = category;
-    if (status != null && status != 'All') query['status'] = status.toLowerCase();
+    if (status != null && status != 'All') {
+      query['status'] = status.toLowerCase();
+    }
     if (q != null && q.isNotEmpty) query['q'] = q;
+    if (color != null && color != 'Any') query['color'] = color;
+    if (fromDate != null && fromDate.isNotEmpty) query['fromDate'] = fromDate;
+    if (toDate != null && toDate.isNotEmpty) query['toDate'] = toDate;
     return get('/items', query: query);
   }
 
@@ -42,12 +45,15 @@ class ItemApiService extends GetConnect {
     required double radiusKm,
     String sort = 'distance',
   }) {
-    return get('/items/nearby', query: {
-      'lat': '$lat',
-      'lng': '$lng',
-      'radiusKm': '$radiusKm',
-      'sort': sort,
-    });
+    return get(
+      '/items/nearby',
+      query: {
+        'lat': '$lat',
+        'lng': '$lng',
+        'radiusKm': '$radiusKm',
+        'sort': sort,
+      },
+    );
   }
 
   Future<Response<dynamic>> getItem(String id) {
@@ -95,10 +101,8 @@ class ItemApiService extends GetConnect {
     required String id,
     required String matchItemId,
   }) {
-    return post(
-      '/items/$id/notify-match',
-      {'matchItemId': matchItemId},
-      headers: _auth(token),
-    );
+    return post('/items/$id/notify-match', {
+      'matchItemId': matchItemId,
+    }, headers: _auth(token));
   }
 }

@@ -20,6 +20,7 @@ function buildItemQuery(filters = {}) {
       { title: new RegExp(escapeRegExp(filters.q), 'i') },
       { description: new RegExp(escapeRegExp(filters.q), 'i') },
       { category: new RegExp(escapeRegExp(filters.q), 'i') },
+      { color: new RegExp(escapeRegExp(filters.q), 'i') },
       { 'location.address': new RegExp(escapeRegExp(filters.q), 'i') },
     ];
   }

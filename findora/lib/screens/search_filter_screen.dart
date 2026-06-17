@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/item_controller.dart';
@@ -14,21 +16,23 @@ class SearchFilterScreen extends StatefulWidget {
 
 class _SearchFilterScreenState extends State<SearchFilterScreen> {
   final _searchController = TextEditingController();
+  late final ItemController _ctrl;
+  Timer? _searchDebounce;
   String _query = '';
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
   String _selectedColor = 'Any';
   DateTimeRange? _dateRange;
-  bool _showFilters = false;
 
   final List<String> _categories = [
     'All',
     'Electronics',
-    'Documents',
-    'Keys',
-    'Bags & Wallets',
-    'Clothing',
     'Accessories',
+    'Bags',
+    'Keys',
+    'Jewelry',
+    'Documents',
+    'Clothing',
     'Books',
     'Other',
   ];
@@ -47,19 +51,62 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   final List<String> _statuses = ['All', 'Lost', 'Found'];
 
   @override
+  void initState() {
+    super.initState();
+    _ctrl = Get.find<ItemController>();
+    if (_ctrl.items.isEmpty && !_ctrl.isLoading.value) {
+      _ctrl.fetchItems();
+    }
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _queueSearchFetch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _fetchFilteredItems,
+    );
+  }
+
+  Future<void> _fetchFilteredItems() {
+    return _ctrl.fetchItems(
+      q: _query.trim().isEmpty ? null : _query.trim(),
+      status: _selectedStatus,
+      category: _selectedCategory,
+      color: _selectedColor,
+      fromDate: _dateRange == null ? null : _apiStartDate(_dateRange!.start),
+      toDate: _dateRange == null ? null : _apiEndDate(_dateRange!.end),
+    );
+  }
+
+  String _apiStartDate(DateTime date) =>
+      DateTime(date.year, date.month, date.day).toUtc().toIso8601String();
+
+  String _apiEndDate(DateTime date) => DateTime(
+    date.year,
+    date.month,
+    date.day,
+    23,
+    59,
+    59,
+    999,
+  ).toUtc().toIso8601String();
+
   List<ItemModel> get _results {
-    final allItems = Get.find<ItemController>().items;
+    final allItems = _ctrl.items;
     return allItems.where((item) {
       final matchQuery =
           _query.isEmpty ||
           item.title.toLowerCase().contains(_query.toLowerCase()) ||
           item.description.toLowerCase().contains(_query.toLowerCase()) ||
-          item.location.toLowerCase().contains(_query.toLowerCase());
+          item.location.toLowerCase().contains(_query.toLowerCase()) ||
+          (item.color?.toLowerCase().contains(_query.toLowerCase()) ?? false);
       final matchCat =
           _selectedCategory == 'All' || item.category == _selectedCategory;
       final matchStatus =
@@ -69,7 +116,8 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
       final matchColor =
           _selectedColor == 'Any' ||
           (item.color?.toLowerCase() == _selectedColor.toLowerCase());
-      return matchQuery && matchCat && matchStatus && matchColor;
+      final matchDate = _dateRange == null || _isInDateRange(item);
+      return matchQuery && matchCat && matchStatus && matchColor && matchDate;
     }).toList();
   }
 
@@ -79,13 +127,22 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
       _selectedColor != 'Any' ||
       _dateRange != null;
 
-  void _clearFilters() {
-    setState(() {
-      _selectedCategory = 'All';
-      _selectedStatus = 'All';
-      _selectedColor = 'Any';
-      _dateRange = null;
-    });
+  bool _isInDateRange(ItemModel item) {
+    final raw = item.date.trim();
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null || _dateRange == null) return true;
+    final itemDay = DateTime(parsed.year, parsed.month, parsed.day);
+    final start = DateTime(
+      _dateRange!.start.year,
+      _dateRange!.start.month,
+      _dateRange!.start.day,
+    );
+    final end = DateTime(
+      _dateRange!.end.year,
+      _dateRange!.end.month,
+      _dateRange!.end.day,
+    );
+    return !itemDay.isBefore(start) && !itemDay.isAfter(end);
   }
 
   @override
@@ -95,9 +152,8 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
       body: Column(
         children: [
           _buildHeader(context),
-          if (_showFilters) _buildFilterPanel(),
-          _buildResultsBar(),
-          Expanded(child: _buildResults()),
+          Obx(() => _buildResultsBar()),
+          Expanded(child: Obx(() => _buildResults())),
         ],
       ),
     );
@@ -131,7 +187,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -161,7 +217,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 10,
                     ),
                   ],
@@ -192,7 +248,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                           border: InputBorder.none,
                           isDense: true,
                         ),
-                        onChanged: (v) => setState(() => _query = v),
+                        onChanged: (v) {
+                          setState(() => _query = v);
+                          _queueSearchFetch();
+                        },
                       ),
                     ),
                     if (_query.isNotEmpty)
@@ -205,10 +264,11 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');
+                          _fetchFilteredItems();
                         },
                       ),
                     GestureDetector(
-                      onTap: () => setState(() => _showFilters = !_showFilters),
+                      onTap: _openFilterSheet,
                       child: Container(
                         margin: const EdgeInsets.all(8),
                         padding: const EdgeInsets.all(7),
@@ -237,162 +297,192 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     );
   }
 
-  Widget _buildFilterPanel() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Filters',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+  Future<void> _openFilterSheet() async {
+    var tempStatus = _selectedStatus;
+    var tempCategory = _selectedCategory;
+    var tempColor = _selectedColor;
+    var tempDateRange = _dateRange;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.82,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      12,
+                      20,
+                      MediaQuery.of(context).viewInsets.bottom + 16,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 38,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Text(
+                              'Filters',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () {
+                                setSheetState(() {
+                                  tempStatus = 'All';
+                                  tempCategory = 'All';
+                                  tempColor = 'Any';
+                                  tempDateRange = null;
+                                });
+                              },
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _filterLabel('Status'),
+                                const SizedBox(height: 8),
+                                _buildChipRow(
+                                  items: _statuses,
+                                  selected: tempStatus,
+                                  onSelect: (v) =>
+                                      setSheetState(() => tempStatus = v),
+                                ),
+                                const SizedBox(height: 16),
+                                _filterLabel('Category'),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _categories.map((cat) {
+                                    final sel = cat == tempCategory;
+                                    return GestureDetector(
+                                      onTap: () => setSheetState(
+                                        () => tempCategory = cat,
+                                      ),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 7,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: sel
+                                              ? const Color(0xFF2563EB)
+                                              : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          cat,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: sel
+                                                ? Colors.white
+                                                : const Color(0xFF374151),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 16),
+                                _filterLabel('Color'),
+                                const SizedBox(height: 8),
+                                _buildColorRow(
+                                  selectedColor: tempColor,
+                                  onSelect: (v) =>
+                                      setSheetState(() => tempColor = v),
+                                ),
+                                const SizedBox(height: 16),
+                                _filterLabel('Date Range'),
+                                const SizedBox(height: 8),
+                                _buildDateRangePicker(
+                                  range: tempDateRange,
+                                  onChanged: (range) => setSheetState(
+                                    () => tempDateRange = range,
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              setState(() {
+                                _selectedStatus = tempStatus;
+                                _selectedCategory = tempCategory;
+                                _selectedColor = tempColor;
+                                _dateRange = tempDateRange;
+                              });
+                              Navigator.pop(sheetContext);
+                              await _fetchFilteredItems();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Select',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              const Spacer(),
-              if (_hasActiveFilters)
-                GestureDetector(
-                  onTap: _clearFilters,
-                  child: const Text(
-                    'Clear all',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFFEF4444),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Status
-          _filterLabel('Status'),
-          const SizedBox(height: 8),
-          _buildChipRow(
-            items: _statuses,
-            selected: _selectedStatus,
-            onSelect: (v) => setState(() => _selectedStatus = v),
-          ),
-          const SizedBox(height: 14),
-
-          // Category
-          _filterLabel('Category'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _categories.map((cat) {
-              final sel = cat == _selectedCategory;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedCategory = cat),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: sel
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    cat,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: sel ? Colors.white : const Color(0xFF374151),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 14),
-
-          // Color
-          _filterLabel('Color'),
-          const SizedBox(height: 8),
-          _buildColorRow(),
-          const SizedBox(height: 14),
-
-          // Date range
-          _filterLabel('Date Range'),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () async {
-              final range = await showDateRangePicker(
-                context: context,
-                firstDate: DateTime(2024),
-                lastDate: DateTime.now(),
-                builder: (context, child) => Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: const ColorScheme.light(
-                      primary: Color(0xFF2563EB),
-                    ),
-                  ),
-                  child: child!,
-                ),
-              );
-              if (range != null) setState(() => _dateRange = range);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _dateRange != null
-                    ? const Color(0xFFEFF6FF)
-                    : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _dateRange != null
-                      ? const Color(0xFF2563EB)
-                      : Colors.transparent,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    size: 15,
-                    color: _dateRange != null
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFF64748B),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _dateRange != null
-                        ? '${_fmt(_dateRange!.start)} – ${_fmt(_dateRange!.end)}'
-                        : 'Select date range',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _dateRange != null
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFF64748B),
-                      fontWeight: _dateRange != null
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                    ),
-                  ),
-                  if (_dateRange != null) ...[
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => setState(() => _dateRange = null),
-                      child: const Icon(
-                        Icons.clear_rounded,
-                        size: 14,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -441,7 +531,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     );
   }
 
-  Widget _buildColorRow() {
+  Widget _buildColorRow({
+    required String selectedColor,
+    required ValueChanged<String> onSelect,
+  }) {
     final colorMap = {
       'Any': Colors.grey.shade300,
       'Black': Colors.black,
@@ -459,9 +552,9 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: _colors.map((color) {
-          final sel = color == _selectedColor;
+          final sel = color == selectedColor;
           return GestureDetector(
-            onTap: () => setState(() => _selectedColor = color),
+            onTap: () => onSelect(color),
             child: Container(
               margin: const EdgeInsets.only(right: 10),
               child: Column(
@@ -482,7 +575,9 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                       boxShadow: sel
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF2563EB).withOpacity(0.3),
+                                color: const Color(
+                                  0xFF2563EB,
+                                ).withValues(alpha: 0.3),
                                 blurRadius: 6,
                               ),
                             ]
@@ -512,6 +607,76 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDateRangePicker({
+    required DateTimeRange? range,
+    required ValueChanged<DateTimeRange?> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2024),
+          lastDate: DateTime.now(),
+          initialDateRange: range,
+          builder: (context, child) => Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(primary: Color(0xFF2563EB)),
+            ),
+            child: child!,
+          ),
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: range != null
+              ? const Color(0xFFEFF6FF)
+              : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: range != null ? const Color(0xFF2563EB) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 15,
+              color: range != null
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                range != null
+                    ? '${_fmt(range.start)} - ${_fmt(range.end)}'
+                    : 'Select date range',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: range != null
+                      ? const Color(0xFF2563EB)
+                      : const Color(0xFF64748B),
+                  fontWeight: range != null ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            if (range != null)
+              GestureDetector(
+                onTap: () => onChanged(null),
+                child: const Icon(
+                  Icons.clear_rounded,
+                  size: 16,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -549,18 +714,16 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
           ],
           const Spacer(),
           GestureDetector(
-            onTap: () => setState(() => _showFilters = !_showFilters),
+            onTap: _openFilterSheet,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  _showFilters
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
+                const Icon(
+                  Icons.tune_rounded,
                   size: 18,
-                  color: const Color(0xFF2563EB),
+                  color: Color(0xFF2563EB),
                 ),
-                const Text(
+                Text(
                   'Filters',
                   style: TextStyle(
                     fontSize: 13,
@@ -577,6 +740,9 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   }
 
   Widget _buildResults() {
+    if (_ctrl.isLoading.value && _ctrl.items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_query.isEmpty && !_hasActiveFilters) {
       return _buildEmptySearch();
     }
@@ -625,104 +791,102 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   }
 
   Widget _buildEmptySearch() {
-    return Padding(
+    return ListView(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Popular searches',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
-            ),
+      children: [
+        const Text(
+          'Popular searches',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children:
-                [
-                  'iPhone',
-                  'Wallet',
-                  'Keys',
-                  'ID Card',
-                  'Backpack',
-                  'Airpods',
-                  'Glasses',
-                  'Books',
-                ].map((tag) {
-                  return GestureDetector(
-                    onTap: () {
-                      _searchController.text = tag;
-                      setState(() => _query = tag);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.search_rounded,
-                            size: 13,
-                            color: Color(0xFF94A3B8),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            tag,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF374151),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children:
+              [
+                'iPhone',
+                'Wallet',
+                'Keys',
+                'ID Card',
+                'Backpack',
+                'Airpods',
+                'Glasses',
+                'Books',
+              ].map((tag) {
+                return GestureDetector(
+                  onTap: () {
+                    _searchController.text = tag;
+                    setState(() => _query = tag);
+                    _fetchFilteredItems();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
                     ),
-                  );
-                }).toList(),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Recent items',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...Get.find<ItemController>().items
-              .take(3)
-              .map(
-                (item) => ItemCard(
-                  item: item,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ItemDetailScreen(item: item, isGuest: false),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 4,
+                        ),
+                      ],
                     ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.search_rounded,
+                          size: 13,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          tag,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF374151),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Recent items',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._ctrl.items
+            .take(3)
+            .map(
+              (item) => ItemCard(
+                item: item,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ItemDetailScreen(item: item, isGuest: false),
                   ),
                 ),
               ),
-        ],
-      ),
+            ),
+      ],
     );
   }
 }

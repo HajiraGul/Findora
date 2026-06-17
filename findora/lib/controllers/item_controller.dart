@@ -18,6 +18,7 @@ class ItemController extends GetxController {
   final isLoading = false.obs;
   final myItemsLoading = false.obs;
   final nearbyLoading = false.obs;
+  int _itemsRequestId = 0;
 
   @override
   void onInit() {
@@ -29,24 +30,35 @@ class ItemController extends GetxController {
     String? category,
     String? status,
     String? q,
+    String? color,
+    String? fromDate,
+    String? toDate,
   }) async {
+    final requestId = ++_itemsRequestId;
     try {
       isLoading.value = true;
       final response = await _api.getItems(
         category: category,
         status: status,
         q: q,
+        color: color,
+        fromDate: fromDate,
+        toDate: toDate,
       );
       if (response.isOk && response.body is Map) {
         final list = (response.body['items'] as List?) ?? [];
-        items.value = list
-            .map((j) => ItemModel.fromJson(j as Map<String, dynamic>))
-            .toList();
+        if (requestId == _itemsRequestId) {
+          items.value = list
+              .map((j) => ItemModel.fromJson(j as Map<String, dynamic>))
+              .toList();
+        }
       }
     } catch (_) {
       // keep previous state on network error
     } finally {
-      isLoading.value = false;
+      if (requestId == _itemsRequestId) {
+        isLoading.value = false;
+      }
     }
   }
 
@@ -128,7 +140,9 @@ class ItemController extends GetxController {
         final idx = items.indexWhere((i) => i.id == id);
         if (idx != -1) items[idx] = items[idx].copyWith(isResolved: true);
         final myIdx = myItems.indexWhere((i) => i.id == id);
-        if (myIdx != -1) myItems[myIdx] = myItems[myIdx].copyWith(isResolved: true);
+        if (myIdx != -1) {
+          myItems[myIdx] = myItems[myIdx].copyWith(isResolved: true);
+        }
         return true;
       }
       return false;
