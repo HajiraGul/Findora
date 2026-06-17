@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/picked_location.dart';
@@ -18,6 +21,39 @@ import '../services/location_service.dart';
 // Fallback centre — IIU Islamabad (used until the user recenters/searches).
 const LatLng _defaultCenter = LatLng(33.7215, 73.0433);
 
+class _LocationSearchResult {
+  final String title;
+  final String subtitle;
+  final LatLng point;
+
+  const _LocationSearchResult({
+    required this.title,
+    required this.subtitle,
+    required this.point,
+  });
+
+  factory _LocationSearchResult.fromJson(Map<String, dynamic> json) {
+    final displayName = json['display_name']?.toString() ?? 'Selected place';
+    final parts = displayName
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final lat = double.tryParse(json['lat']?.toString() ?? '') ?? 0;
+    final lon = double.tryParse(json['lon']?.toString() ?? '') ?? 0;
+
+    return _LocationSearchResult(
+      title: parts.isEmpty ? displayName : parts.first,
+      subtitle: parts.length > 1
+          ? parts.skip(1).take(3).join(', ')
+          : displayName,
+      point: LatLng(lat, lon),
+    );
+  }
+
+  String get address => subtitle.isEmpty ? title : '$title, $subtitle';
+}
+
 class LocationPickerScreen extends StatefulWidget {
   const LocationPickerScreen({super.key});
 
@@ -30,6 +66,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
   // ── State ──────────────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   static const _locationService = LocationService();
+  final GetConnect _searchClient = GetConnect();
 
   LatLng? _pickedPoint;
   String? _selectedAddress;
@@ -37,9 +74,13 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
   bool _isConfirming = false;
   bool _isLocating = false; // "use current location" in flight
   bool _isSearching = false; // forward geocoding in flight
+  String? _searchError;
+  int _searchRun = 0;
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  Timer? _searchDebounce;
+  final List<_LocationSearchResult> _searchResults = [];
 
   // Animation for the pin drop bounce
   late AnimationController _pinAnim;
@@ -55,10 +96,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
       duration: const Duration(milliseconds: 600),
     );
     _pinBounce = CurvedAnimation(parent: _pinAnim, curve: Curves.elasticOut);
+    _searchClient.httpClient.timeout = const Duration(seconds: 8);
+    _searchFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _pinAnim.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
@@ -81,8 +127,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
   Future<void> _reverseGeocode(LatLng point) async {
     String address;
     try {
-      final placemarks =
-          await placemarkFromCoordinates(point.latitude, point.longitude);
+      final placemarks = await placemarkFromCoordinates(
+        point.latitude,
+        point.longitude,
+      );
       address = placemarks.isEmpty
           ? _coordsLabel(point)
           : _formatPlacemark(placemarks.first, point);
@@ -98,26 +146,122 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
     });
   }
 
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchError = null;
+    });
+
+    _searchDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 2) {
+      setState(() {
+        _isSearching = false;
+        _searchResults.clear();
+      });
+      return;
+    }
+
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 450),
+      () => _loadSearchSuggestions(query),
+    );
+  }
+
+  Future<void> _loadSearchSuggestions(String query) async {
+    final run = ++_searchRun;
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+    });
+
+    try {
+      final response = await _searchClient.get(
+        'https://nominatim.openstreetmap.org/search',
+        query: {
+          'q': query,
+          'format': 'jsonv2',
+          'addressdetails': '1',
+          'limit': '6',
+          'countrycodes': 'pk',
+        },
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Findora location picker',
+        },
+      );
+      if (!mounted || run != _searchRun) return;
+
+      final body = response.body;
+      if (!response.isOk || body is! List) {
+        setState(() => _searchError = 'Couldn\'t load places');
+        return;
+      }
+
+      setState(() {
+        _searchResults
+          ..clear()
+          ..addAll(
+            body
+                .whereType<Map>()
+                .map(
+                  (row) => _LocationSearchResult.fromJson(
+                    Map<String, dynamic>.from(row),
+                  ),
+                )
+                .where(
+                  (result) =>
+                      result.point.latitude != 0 || result.point.longitude != 0,
+                )
+                .toList(),
+          );
+        if (_searchResults.isEmpty) _searchError = 'No matching place found';
+      });
+    } catch (_) {
+      if (!mounted || run != _searchRun) return;
+      setState(() => _searchError = 'Couldn\'t load places');
+    } finally {
+      if (mounted && run == _searchRun) setState(() => _isSearching = false);
+    }
+  }
+
   Future<void> _searchAddress(String query) async {
-    if (query.trim().isEmpty) return;
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
     _searchFocus.unfocus();
+    _searchDebounce?.cancel();
+    if (_searchResults.isNotEmpty) {
+      _selectSearchResult(_searchResults.first);
+      return;
+    }
+
     setState(() => _isSearching = true);
     try {
-      final results = await locationFromAddress(query.trim());
+      await _loadSearchSuggestions(trimmed);
       if (!mounted) return;
-      if (results.isEmpty) {
+      if (_searchResults.isEmpty) {
         _showSnack('No matching place found');
         return;
       }
-      final loc = results.first;
-      final point = LatLng(loc.latitude, loc.longitude);
-      _mapController.move(point, 16);
-      _onMapTap(point);
+      _selectSearchResult(_searchResults.first);
     } catch (_) {
       if (mounted) _showSnack('Couldn\'t find that address');
     } finally {
       if (mounted) setState(() => _isSearching = false);
     }
+  }
+
+  void _selectSearchResult(_LocationSearchResult result) {
+    _searchController.text = result.title;
+    _searchFocus.unfocus();
+    _mapController.move(result.point, 16);
+    setState(() {
+      _pickedPoint = result.point;
+      _selectedAddress = result.address;
+      _resolvingAddress = false;
+      _searchError = null;
+      _searchResults.clear();
+    });
+    _pinAnim.forward(from: 0);
   }
 
   Future<void> _useCurrentLocation() async {
@@ -162,7 +306,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
 
   String _formatPlacemark(Placemark p, LatLng point) {
     final parts = <String>[];
-    for (final value in [p.street, p.subLocality, p.locality, p.administrativeArea]) {
+    for (final value in [
+      p.street,
+      p.subLocality,
+      p.locality,
+      p.administrativeArea,
+    ]) {
       final v = (value ?? '').trim();
       if (v.isNotEmpty && !parts.contains(v)) parts.add(v);
     }
@@ -216,6 +365,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
               children: [
                 _buildHeader(),
                 _buildSearchBar(),
+                _buildSearchSuggestions(),
               ],
             ),
           ),
@@ -370,7 +520,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: const Icon(
                     Icons.arrow_back_ios_new_rounded,
@@ -401,11 +553,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: const Row(
                   children: [
@@ -449,7 +606,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
         children: [
           const Padding(
             padding: EdgeInsets.only(left: 14),
-            child: Icon(Icons.search_rounded, color: Color(0xFF2563EB), size: 22),
+            child: Icon(
+              Icons.search_rounded,
+              color: Color(0xFF2563EB),
+              size: 22,
+            ),
           ),
           Expanded(
             child: TextField(
@@ -460,9 +621,13 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
                 hintText: 'Search address or place name...',
                 hintStyle: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
               ),
               style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+              onChanged: _onSearchChanged,
               onSubmitted: _searchAddress,
             ),
           ),
@@ -478,16 +643,160 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
           else if (_searchController.text.isNotEmpty)
             GestureDetector(
               onTap: () {
+                _searchDebounce?.cancel();
                 _searchController.clear();
-                _searchFocus.unfocus();
-                setState(() {});
+                setState(() {
+                  _isSearching = false;
+                  _searchError = null;
+                  _searchResults.clear();
+                });
               },
               child: const Padding(
                 padding: EdgeInsets.only(right: 12),
-                child: Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 18),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 18,
+                ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchSuggestions() {
+    final hasQuery = _searchController.text.trim().length >= 2;
+    final shouldShow =
+        _searchFocus.hasFocus &&
+        hasQuery &&
+        (_searchResults.isNotEmpty || _searchError != null || _isSearching);
+    if (!shouldShow) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      constraints: const BoxConstraints(maxHeight: 260),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: _searchResults.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    if (_isSearching)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      const Icon(
+                        Icons.search_off_rounded,
+                        size: 18,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _isSearching
+                            ? 'Searching places...'
+                            : (_searchError ?? 'No matching place found'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: _searchResults.length,
+                separatorBuilder: (_, _) => const Divider(
+                  height: 1,
+                  indent: 52,
+                  color: Color(0xFFE2E8F0),
+                ),
+                itemBuilder: (_, index) {
+                  final result = _searchResults[index];
+                  return InkWell(
+                    onTap: () => _selectSearchResult(result),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.place_outlined,
+                              size: 17,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  result.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  result.subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.north_west_rounded,
+                            size: 16,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -737,10 +1046,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen>
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
-            onPressed: _resolvingAddress || _isConfirming ? null : _confirmLocation,
+            onPressed: _resolvingAddress || _isConfirming
+                ? null
+                : _confirmLocation,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2563EB),
-              disabledBackgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.5),
+              disabledBackgroundColor: const Color(
+                0xFF2563EB,
+              ).withValues(alpha: 0.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
