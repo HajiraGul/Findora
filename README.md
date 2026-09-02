@@ -6,7 +6,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js)
 ![MongoDB](https://img.shields.io/badge/MongoDB-8.x-47A248?logo=mongodb)
 ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase)
-![License](https://img.shields.io/badge/License-ISC-green)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
