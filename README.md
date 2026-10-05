@@ -15,6 +15,7 @@
 - [About](#about)
 - [FYP Overview](#fyp-overview)
 - [Key Features](#key-features)
+- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -89,6 +90,27 @@ Findora was designed and developed as a **Final Year Project** in Software Engin
 
 ---
 
+## Screenshots
+
+<p align="center">
+ <img width="341" height="743" alt="image" src="https://github.com/user-attachments/assets/c69a4c1f-6708-48a2-bbae-0be79b19d128" />
+ <img width="339" height="740" alt="image" src="https://github.com/user-attachments/assets/2bbaf4b0-53f5-44e4-a045-8163803f5884" />
+ <img width="342" height="742" alt="image" src="https://github.com/user-attachments/assets/0bd5cb4b-cb55-40a3-8e31-95f789c06d4d" />
+ <img width="342" height="740" alt="image" src="https://github.com/user-attachments/assets/b851ad4a-2317-4a09-a237-4e194d09b819" />
+ <img width="385" height="738" alt="image" src="https://github.com/user-attachments/assets/2ed1aa7f-3c40-4de1-821b-35cae5be0fc7" />
+ <img width="339" height="740" alt="image" src="https://github.com/user-attachments/assets/b7d124c3-79f7-47e5-bb44-bb002d494b3c" />
+ <img width="364" height="791" alt="image" src="https://github.com/user-attachments/assets/b8926345-ff90-43e6-a8b4-55f7de217212" />
+ <img width="359" height="784" alt="image" src="https://github.com/user-attachments/assets/6b10bd36-b56e-41a8-aa9b-a01325c7d065" />
+ <img width="373" height="796" alt="image" src="https://github.com/user-attachments/assets/bc250333-fc48-4826-9eb7-bd9fd0c039ac" />
+ <img width="363" height="797" alt="image" src="https://github.com/user-attachments/assets/319a423a-c73d-44b1-9f64-0404d5ceba4b" />
+ <img width="357" height="795" alt="image" src="https://github.com/user-attachments/assets/66f2641a-864d-4df3-a6d0-25f3d26b87b0" />
+ <img width="359" height="794" alt="image" src="https://github.com/user-attachments/assets/ecce34b4-807e-4be6-be6f-42746622db5d" />
+ <img width="391" height="852" alt="image" src="https://github.com/user-attachments/assets/a726558e-416d-4f32-8e68-23e9c14ce452" />
+ <img width="385" height="843" alt="image" src="https://github.com/user-attachments/assets/1e1b4812-4570-42e6-b0ae-e982aa65dce0" />
+</p>
+
+
+---
 ## Architecture
 
 ```
